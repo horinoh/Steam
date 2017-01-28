@@ -31,6 +31,8 @@ public:
 	//class GameServer* GetGameServer() { return mpGameServer; }
 	class GameClient* GetGameClient() { return mpGameClient; }
 
+	static void PrintUsage();
+
 protected:
 	FILE* StdOut = nullptr;
 	FILE* StdErr = nullptr;
@@ -56,9 +58,11 @@ public:
 	void JoinLobby(const uint32 Index);
 	void LeaveLobby();
 
-	static void LobbyStatus_(const CSteamID LobbySteamID);
-	void LobbyStatus() { LobbyStatus_(mCreatedLobbySteamID); }
+	static void LobbyStatus(const CSteamID LobbySteamID);
 	void ToggleReady();
+
+	CSteamID GetCreatedLobbySteamID() const { return mCreatedLobbySteamID; }
+	CSteamID GetEnteredLobbySteamID() const { return mEnteredLobbySteamID; }
 
 protected:
 	CCallResult<GameClient, LobbyCreated_t> mOnLobbyCreated;

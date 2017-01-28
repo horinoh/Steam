@@ -199,7 +199,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}
 				//!< ロビー状態の表示
 				if (KEY_T == wParam) {
-					ClientInst->LobbyStatus();
+					ClientInst->LobbyStatus(ClientInst->GetEnteredLobbySteamID());
 				}
 			}
 		}
@@ -280,13 +280,7 @@ Steam::Steam()
 				}
 			}
 
-			std::cout << "-----------------------------------------------" << std::endl;
-			//std::cout << "s : Create Server" << std::endl;
-			//std::cout << "c : Create Client" << std::endl;
-			std::cout << "l : Create Lobby" << std::endl;
-			std::cout << "f : Find Lobby" << std::endl;
-			std::cout << "[0-9] : Join Lobby" << std::endl;
-			std::cout << "-----------------------------------------------" << std::endl;
+			Steam::PrintUsage();
 
 			StartClient();
 		}
@@ -322,6 +316,17 @@ void Steam::StartClient()
 	}
 }
 
+void Steam::PrintUsage()
+{
+	std::cout << "-----------------------------------------------" << std::endl;
+	std::cout << "l : Create Lobby" << std::endl;
+	std::cout << "f : Find Lobby" << std::endl;
+	std::cout << "[0-9] : Join Lobby" << std::endl;
+	std::cout << "t: Lobby Status" << std::endl;
+	std::cout << "r: Toggle READY" << std::endl;
+	std::cout << "-----------------------------------------------" << std::endl;
+}
+
 /**
 @brief クライアント
 */
@@ -351,9 +356,9 @@ void GameClient::OnLobbyCreated(LobbyCreated_t *pCallback, bool bIOFailure)
 		if (SteamUser() && SteamMatchmaking()) {
 			SteamMatchmaking()->SetLobbyData(mCreatedLobbySteamID, "name", (std::to_string(SteamUser()->GetSteamID().ConvertToUint64()) + "'s LOBBY").c_str());
 
-			std::cout << "Lobby SteamID : " << mCreatedLobbySteamID.ConvertToUint64() << ", name = \"" << SteamMatchmaking()->GetLobbyData(mCreatedLobbySteamID, "name") << "\"" << std::endl;
+			std::cout << "Created : " << SteamMatchmaking()->GetLobbyData(mCreatedLobbySteamID, "name") << std::endl;
 
-			LobbyStatus();
+			LobbyStatus(mEnteredLobbySteamID);
 		}
 	}
 }
@@ -369,10 +374,13 @@ void GameClient::OnLobbyMatchListed(LobbyMatchList_t* pCallback, bool bIOFailure
 			for (uint32 i = 0; i < Count; ++i) {
 				const auto LobbySteamID = SteamMatchmaking()->GetLobbyByIndex(i);
 				
-				//!< 自分の作成したロビーはリストアップしない
+				//!< 自分の作成したロビーは選択肢に入れない
 				if (MySteamID != SteamMatchmaking()->GetLobbyOwner(LobbySteamID)) {
+					std::cout << "[" << mFoundLoobySteamID.size() << "] : " << SteamMatchmaking()->GetLobbyData(LobbySteamID, "name") << std::endl;
 					mFoundLoobySteamID.push_back(LobbySteamID);
-					std::cout << "[" << i << "] : " << SteamMatchmaking()->GetLobbyData(LobbySteamID, "name") << std::endl;
+				}
+				else {
+					std::cout << "[-] : " << SteamMatchmaking()->GetLobbyData(LobbySteamID, "name") << std::endl;
 				}
 			}
 		}
@@ -388,7 +396,7 @@ void GameClient::OnLobbyEntered(LobbyEnter_t *pCallback, bool bIOFailure)
 
 				std::cout << "Entered : " << SteamMatchmaking()->GetLobbyData(mEnteredLobbySteamID, "name") << std::endl;
 
-				LobbyStatus_(mEnteredLobbySteamID);
+				LobbyStatus(mEnteredLobbySteamID);
 			}
 		}
 	}
@@ -435,21 +443,22 @@ void GameClient::LeaveLobby()
 	}
 }
 
-void GameClient::LobbyStatus_(const CSteamID LobbySteamID)
+void GameClient::LobbyStatus(const CSteamID LobbySteamID)
 {
-	std::cout << "---- Lobby Status -------------------------------" << std::endl;
 	if (SteamMatchmaking()) {
 		if (LobbySteamID.IsValid()) {
+			std::cout << "---- " << SteamMatchmaking()->GetLobbyData(LobbySteamID, "name") << " ----------------" << std::endl;
+
 			const auto Count = SteamMatchmaking()->GetNumLobbyMembers(LobbySteamID);
 			for (auto i = 0; i < Count; ++i) {
 				const auto MemberSteamID = SteamMatchmaking()->GetLobbyMemberByIndex(LobbySteamID, i);
 
 				const auto ReadyState = std::atoi(SteamMatchmaking()->GetLobbyMemberData(LobbySteamID, MemberSteamID, "ready"));
-				std::cout << (1 == ReadyState ? "(READY) " : "(NOT READY) ") << MemberSteamID.ConvertToUint64() << std::endl;
+				std::cout << MemberSteamID.ConvertToUint64() << (1 == ReadyState ? " (READY) " : "") << std::endl;
 			}
+			std::cout << "-----------------------------------------------" << std::endl;
 		}
 	}
-	std::cout << "-----------------------------------------------" << std::endl;
 }
 void GameClient::ToggleReady()
 {
@@ -462,7 +471,7 @@ void GameClient::ToggleReady()
 				const auto ReadyState = !std::atoi(SteamMatchmaking()->GetLobbyMemberData(LobbySteamID, MySteamID, "ready"));
 				SteamMatchmaking()->SetLobbyMemberData(LobbySteamID, "ready", std::to_string(ReadyState).c_str());
 
-				LobbyStatus_(LobbySteamID);
+				LobbyStatus(LobbySteamID);
 			}
 		}
 	}
