@@ -161,47 +161,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_KEYDOWN:
 		if (nullptr != SteamInst) {
-			//!< キーコード : https://msdn.microsoft.com/ja-jp/library/windows/desktop/dd375731(v=vs.85).aspx
-			//static const WPARAM KEY_S = 0x53;
-			//static const WPARAM KEY_C = 0x43;
-			static const WPARAM KEY_L = 0x4c;
-			static const WPARAM KEY_F = 0x46;
-			static const WPARAM KEY_0 = 0x30;
-			static const WPARAM KEY_9 = 0x39;
-			static const WPARAM KEY_R = 0x52;
-			static const WPARAM KEY_T = 0x54;
-
-			//!< サーバスタート
-			//if (KEY_S == wParam) {
-			//	SteamInst->StartServer();
-			//}
-			//!< クライアントスタート
-			//if (KEY_C == wParam) {
-			//	SteamInst->StartClient();
-			//}
-			const auto ClientInst = SteamInst->GetGameClient();
-			if (nullptr != ClientInst) {
-				//!< ロビー作成
-				if (KEY_L == wParam) {
-					ClientInst->CreateLobby();
-				}
-				//!< ロビー検索
-				if (KEY_F == wParam) {
-					ClientInst->FindLobby();
-				}
-				//!< ロビー参加
-				if (KEY_0 <= wParam && KEY_9 >= wParam) {
-					ClientInst->JoinLobby(static_cast<uint32>(wParam - KEY_0));
-				}
-				//!< READY 状態のトグル
-				if (KEY_R == wParam) {
-					ClientInst->ToggleReady();
-				}
-				//!< ロビー状態の表示
-				if (KEY_T == wParam) {
-					ClientInst->LobbyStatus(ClientInst->GetEnteredLobbySteamID());
-				}
-			}
+			SteamInst->HandleInput(wParam);
 		}
 		if (VK_ESCAPE == wParam) {
 			SendMessage(hWnd, WM_DESTROY, 0, 0);
@@ -289,7 +249,7 @@ Steam::Steam()
 Steam::~Steam()
 {
 	SAFE_DELETE(mpGameClient);
-	//SAFE_DELETE(mpGameServer);
+	SAFE_DELETE(mpGameServer);
 
 	SteamAPI_Shutdown();
 
@@ -301,14 +261,20 @@ Steam::~Steam()
 
 void Steam::OnTimer(HWND hWnd, HINSTANCE hInstance)
 {
-	//if (nullptr != mpGameServer) {
-	//	mpGameServer->OnTimer(hWnd, hInst);
-	//}
+	if (nullptr != mpGameServer) {
+		mpGameServer->OnTimer(hWnd, hInst);
+	}
 	if (nullptr != mpGameClient) {
 		mpGameClient->OnTimer(hWnd, hInst);
 	}
 }
 
+void Steam::StartServer()
+{
+	if (nullptr == mpGameServer) {
+		mpGameServer = new GameServer();
+	}
+}
 void Steam::StartClient()
 {
 	if (nullptr == mpGameClient) {
@@ -319,12 +285,114 @@ void Steam::StartClient()
 void Steam::PrintUsage()
 {
 	std::cout << "-----------------------------------------------" << std::endl;
+	std::cout << "u : Print Usage" << std::endl;
 	std::cout << "l : Create Lobby" << std::endl;
 	std::cout << "f : Find Lobby" << std::endl;
 	std::cout << "[0-9] : Join Lobby" << std::endl;
 	std::cout << "t: Lobby Status" << std::endl;
 	std::cout << "r: Toggle READY" << std::endl;
+	std::cout << "s: Start Game" << std::endl;
 	std::cout << "-----------------------------------------------" << std::endl;
+}
+void Steam::HandleInput(WPARAM wParam)
+{
+	//!< キーコード : https://msdn.microsoft.com/ja-jp/library/windows/desktop/dd375731(v=vs.85).aspx
+	static const WPARAM KEY_S = 0x53;
+	static const WPARAM KEY_L = 0x4c;
+	static const WPARAM KEY_F = 0x46;
+	static const WPARAM KEY_0 = 0x30;
+	static const WPARAM KEY_9 = 0x39;
+	static const WPARAM KEY_R = 0x52;
+	static const WPARAM KEY_T = 0x54;
+	static const WPARAM KEY_U = 0x55;
+
+	if (KEY_U == wParam) {
+		PrintUsage();
+	}
+	const auto ServerInst = SteamInst->GetGameServer();
+	if (nullptr == ServerInst) {
+		//!< (ゲームサーバを作成して)ゲームスタート
+		if (KEY_S == wParam) {
+			SteamInst->StartServer();
+		}
+	}
+	const auto ClientInst = GetGameClient();
+	if (nullptr != ClientInst) {
+		//!< ロビー作成
+		if (KEY_L == wParam) {
+			ClientInst->CreateLobby();
+		}
+		//!< ロビー検索
+		if (KEY_F == wParam) {
+			ClientInst->FindLobby();
+		}
+		//!< ロビー参加
+		if (KEY_0 <= wParam && KEY_9 >= wParam) {
+			ClientInst->JoinLobby(static_cast<uint32>(wParam - KEY_0));
+		}
+		//!< READY 状態のトグル
+		if (KEY_R == wParam) {
+			ClientInst->ToggleReady();
+		}
+		//!< ロビー状態の表示
+		if (KEY_T == wParam) {
+			ClientInst->LobbyStatus(ClientInst->GetEnteredLobbySteamID());
+		}
+	}
+}
+
+/**
+@brief サーバ
+*/
+GameServer::GameServer()
+{
+	//!< ポート : https://support.steampowered.com/kb_article.php?ref=8571-GLVN-8711
+	if (SteamGameServer_Init(0, 8766, 27015, 27016, eServerModeAuthenticationAndSecure, "1.0.0.0")) {
+		if (SteamGameServer()) {
+			SteamGameServer()->SetModDir("ModDir");
+
+			SteamGameServer()->SetProduct("Product");
+			SteamGameServer()->SetGameDescription("Game Description");
+
+			//SteamGameServer()->SetSpectatorPort( ... );
+			//SteamGameServer()->SetSpectatorServerName( ... );
+
+			SteamGameServer()->LogOnAnonymous();
+
+			SteamGameServer()->EnableHeartbeats(true);
+		}
+	}
+
+	//SendUpdatedServerDetailsToSteam();
+}
+GameServer::~GameServer()
+{
+	if (SteamGameServer()) {
+		SteamGameServer()->EnableHeartbeats(false);
+
+		//!< #MY_TODO 終了をクライアントへ知らせる
+		//SteamGameServerNetworking()->SendP2PPacket();
+
+		SteamGameServer()->LogOff();
+	}
+
+	SteamGameServer_Shutdown();
+}
+
+void GameServer::OnTimer(HWND hWnd, HINSTANCE hInstance)
+{
+
+}
+
+void GameServer::OnSteamServersConnected(SteamServersConnected_t* pCallback)
+{
+	//m_bConnectedToSteam = true;
+}
+void GameServer::OnSteamServerConnectFailure(SteamServerConnectFailure_t* pCallback)
+{
+}
+void GameServer::OnSteamServersDisconnected(SteamServersDisconnected_t* pCallback)
+{
 }
 
 /**
@@ -336,6 +404,13 @@ GameClient::GameClient()
 GameClient::~GameClient()
 {
 	if (SteamMatchmaking()) {
+		if (k_HAuthTicketInvalid != mAuthTicket) {
+			if (SteamUser()) {
+				SteamUser()->CancelAuthTicket(mAuthTicket);
+			}
+			mAuthTicket = k_HAuthTicketInvalid;
+		}
+
 		if (mCreatedLobbySteamID.IsValid()) {
 			SteamMatchmaking()->LeaveLobby(mCreatedLobbySteamID);
 			mCreatedLobbySteamID = CSteamID();
@@ -347,6 +422,28 @@ GameClient::~GameClient()
 void GameClient::OnTimer(HWND hWnd, HINSTANCE hInstance)
 {
 	SteamAPI_RunCallbacks();
+
+	//!< ロビーに入った
+	if (mEnteredLobbySteamID.IsValid()) {
+		//!< サーバが存在する
+		if (SteamGameServer()) {
+			const auto ServerSteamID = SteamGameServer()->GetSteamID();
+			if (ServerSteamID.IsValid()) {
+				//!< サーバに入る (サーバとロビーを関連付ける)
+				SteamMatchmaking()->SetLobbyGameServer(mEnteredLobbySteamID, 0, 0, ServerSteamID);
+
+				if (SteamUser()) {
+					char Token[1024];
+					uint32 TokenLength = 0;
+					mAuthTicket = SteamUser()->GetAuthSessionTicket(Token, sizeof(Token), &TokenLength);
+					// #MY_TODO サーバへ伝える
+
+					// #MY_TODO サーバ
+					//SteamGameServer()->BeginAuthSession() をコール、ValidateAuthTicketResponse_t でコールバックされる
+				}
+			}
+		}
+	}
 }
 
 void GameClient::OnLobbyCreated(LobbyCreated_t *pCallback, bool bIOFailure)
@@ -354,10 +451,12 @@ void GameClient::OnLobbyCreated(LobbyCreated_t *pCallback, bool bIOFailure)
 	if (!bIOFailure) {
 		mEnteredLobbySteamID = mCreatedLobbySteamID = pCallback->m_ulSteamIDLobby;
 		if (SteamUser() && SteamMatchmaking()) {
-			SteamMatchmaking()->SetLobbyData(mCreatedLobbySteamID, "name", (std::to_string(SteamUser()->GetSteamID().ConvertToUint64()) + "'s LOBBY").c_str());
+			const auto SteamID = SteamUser()->GetSteamID();
+
+			//SteamMatchmaking()->SetLobbyData(mCreatedLobbySteamID, "name", (std::to_string(SteamID.ConvertToUint64()) + "'s LOBBY").c_str());
+			SteamMatchmaking()->SetLobbyData(mCreatedLobbySteamID, "name", "MY LOBBY");
 
 			std::cout << "Created : " << SteamMatchmaking()->GetLobbyData(mCreatedLobbySteamID, "name") << std::endl;
-
 			LobbyStatus(mEnteredLobbySteamID);
 		}
 	}
@@ -454,7 +553,8 @@ void GameClient::LobbyStatus(const CSteamID LobbySteamID)
 				const auto MemberSteamID = SteamMatchmaking()->GetLobbyMemberByIndex(LobbySteamID, i);
 
 				const auto ReadyState = std::atoi(SteamMatchmaking()->GetLobbyMemberData(LobbySteamID, MemberSteamID, "ready"));
-				std::cout << MemberSteamID.ConvertToUint64() << (1 == ReadyState ? " (READY) " : "") << std::endl;
+				//std::cout << MemberSteamID.ConvertToUint64() << (1 == ReadyState ? " (READY) " : "") << std::endl;
+				std::cout << (SteamUser()->GetSteamID() == MemberSteamID ? "ME" : "SOMEONE") << (1 == ReadyState ? " (READY) " : "") << std::endl;
 			}
 			std::cout << "-----------------------------------------------" << std::endl;
 		}
@@ -476,5 +576,4 @@ void GameClient::ToggleReady()
 		}
 	}
 }
-
 #pragma endregion
