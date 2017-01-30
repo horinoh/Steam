@@ -261,6 +261,8 @@ Steam::~Steam()
 
 void Steam::OnTimer(HWND hWnd, HINSTANCE hInstance)
 {
+	SteamAPI_RunCallbacks();
+
 	if (nullptr != mpGameServer) {
 		mpGameServer->OnTimer(hWnd, hInst);
 	}
@@ -360,6 +362,9 @@ GameServer::GameServer()
 			SteamGameServer()->LogOnAnonymous();
 
 			SteamGameServer()->EnableHeartbeats(true);
+
+			const auto ServerSteamID = SteamGameServer()->GetSteamID();
+			std::cout << "ServerSteamID = " << ServerSteamID.ConvertToUint64() << std::endl;
 		}
 	}
 
@@ -380,6 +385,36 @@ GameServer::~GameServer()
 }
 
 void GameServer::OnTimer(HWND hWnd, HINSTANCE hInstance)
+{
+	ReceiveData();
+}
+void GameServer::ReceiveData()
+{
+	if (SteamGameServerNetworking()) {
+		const auto ServerSteamID = SteamGameServer()->GetSteamID();
+		const auto ServerSteamIDU64 = ServerSteamID.ConvertToUint64();
+
+		uint32 Size = 0;
+		while (SteamGameServerNetworking()->IsP2PPacketAvailable(&Size)) {
+			if (Size) {
+				auto Buffer = new char[Size];
+				CSteamID RemoteSteamID;
+				if (SteamGameServerNetworking()->ReadP2PPacket(Buffer, Size, &Size, &RemoteSteamID)) {
+					std::cout << "Received " << Size << std::endl;
+
+					if (SteamGameServer()) {
+						//!< 完了したら OnValidateAuthTicketResponse() がコールバックされる
+						//if (k_EBeginAuthSessionResultOK == SteamGameServer()->BeginAuthSession()) {
+						//}
+					}
+				}
+				delete[] Buffer;
+			}
+		}
+	}
+}
+
+void GameServer::OnValidateAuthTicketResponse(ValidateAuthTicketResponse_t* pCallback)
 {
 
 }
@@ -421,8 +456,6 @@ GameClient::~GameClient()
 
 void GameClient::OnTimer(HWND hWnd, HINSTANCE hInstance)
 {
-	SteamAPI_RunCallbacks();
-
 	//!< ロビーに入った
 	if (mEnteredLobbySteamID.IsValid()) {
 		//!< サーバが存在する
@@ -432,15 +465,38 @@ void GameClient::OnTimer(HWND hWnd, HINSTANCE hInstance)
 				//!< サーバに入る (サーバとロビーを関連付ける)
 				SteamMatchmaking()->SetLobbyGameServer(mEnteredLobbySteamID, 0, 0, ServerSteamID);
 
-				if (SteamUser()) {
-					char Token[1024];
-					uint32 TokenLength = 0;
-					mAuthTicket = SteamUser()->GetAuthSessionTicket(Token, sizeof(Token), &TokenLength);
-					// #MY_TODO サーバへ伝える
-
-					// #MY_TODO サーバ
-					//SteamGameServer()->BeginAuthSession() をコール、ValidateAuthTicketResponse_t でコールバックされる
+				static bool Send = false;
+				if (false == Send) {
+					Send = true;
+					if (SteamUser()) {
+						char Token[1024];
+						uint32 Size = 0;
+						mAuthTicket = SteamUser()->GetAuthSessionTicket(Token, sizeof(Token), &Size);
+						if (SteamNetworking()) {
+							if (SteamNetworking()->SendP2PPacket(ServerSteamID, Token, Size, k_EP2PSendUnreliable)) {
+								std::cout << "Send to " << ServerSteamID.ConvertToUint64() << " Size = " << Size << std::endl;
+							}
+						}
+					}
 				}
+			}
+		}
+	}
+
+	ReceiveData();
+}
+void GameClient::ReceiveData()
+{
+	if (SteamNetworking()) {
+		uint32 Size = 0;
+		while (SteamNetworking()->IsP2PPacketAvailable(&Size)) {
+			if (Size) {
+				auto Buffer = new char[Size];
+				CSteamID RemoteSteamID;
+				if (SteamNetworking()->ReadP2PPacket(Buffer, Size, &Size, &RemoteSteamID)) {
+					std::cout << "Received " << Size << std::endl;
+				}
+				delete[] Buffer;
 			}
 		}
 	}

@@ -50,6 +50,9 @@ public:
 	virtual ~GameServer();
 
 	virtual void OnTimer(HWND hWnd, HINSTANCE hInstance);
+	virtual void ReceiveData();
+
+	STEAM_GAMESERVER_CALLBACK(GameServer, OnValidateAuthTicketResponse, ValidateAuthTicketResponse_t);
 
 	STEAM_GAMESERVER_CALLBACK(GameServer, OnSteamServersConnected, SteamServersConnected_t);
 	STEAM_GAMESERVER_CALLBACK(GameServer, OnSteamServerConnectFailure, SteamServerConnectFailure_t);
@@ -65,6 +68,7 @@ public:
 	virtual ~GameClient();
 
 	virtual void OnTimer(HWND hWnd, HINSTANCE hInstance);
+	virtual void ReceiveData();
 
 	void OnLobbyCreated(LobbyCreated_t *pCallback, bool bIOFailure);
 	void OnLobbyMatchListed(LobbyMatchList_t* pCallback, bool bIOFailure);
