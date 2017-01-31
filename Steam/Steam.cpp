@@ -465,6 +465,7 @@ void GameClient::OnTimer(HWND hWnd, HINSTANCE hInstance)
 				//!< サーバに入る (サーバとロビーを関連付ける)
 				SteamMatchmaking()->SetLobbyGameServer(mEnteredLobbySteamID, 0, 0, ServerSteamID);
 
+				//!< #MY_TODO
 				static bool Send = false;
 				if (false == Send) {
 					Send = true;
@@ -509,8 +510,7 @@ void GameClient::OnLobbyCreated(LobbyCreated_t *pCallback, bool bIOFailure)
 		if (SteamUser() && SteamMatchmaking()) {
 			const auto SteamID = SteamUser()->GetSteamID();
 
-			//SteamMatchmaking()->SetLobbyData(mCreatedLobbySteamID, "name", (std::to_string(SteamID.ConvertToUint64()) + "'s LOBBY").c_str());
-			SteamMatchmaking()->SetLobbyData(mCreatedLobbySteamID, "name", "MY LOBBY");
+			SteamMatchmaking()->SetLobbyData(mCreatedLobbySteamID, "name", (std::to_string(SteamID.ConvertToUint64()) + "'s LOBBY").c_str());
 
 			std::cout << "Created : " << SteamMatchmaking()->GetLobbyData(mCreatedLobbySteamID, "name") << std::endl;
 			LobbyStatus(mEnteredLobbySteamID);
@@ -553,6 +553,15 @@ void GameClient::OnLobbyEntered(LobbyEnter_t *pCallback, bool bIOFailure)
 
 				LobbyStatus(mEnteredLobbySteamID);
 			}
+		}
+	}
+}
+void GameClient::OnLobbyGameCreated(LobbyGameCreated_t* pCallback)
+{
+	if (CSteamID(pCallback->m_ulSteamIDGameServer).IsValid()) {
+		if (mEnteredLobbySteamID.IsValid()) {
+			SteamMatchmaking()->LeaveLobby(mEnteredLobbySteamID);
+			mEnteredLobbySteamID = CSteamID();
 		}
 	}
 }
@@ -603,14 +612,15 @@ void GameClient::LobbyStatus(const CSteamID LobbySteamID)
 	if (SteamMatchmaking()) {
 		if (LobbySteamID.IsValid()) {
 			std::cout << "---- " << SteamMatchmaking()->GetLobbyData(LobbySteamID, "name") << " ----------------" << std::endl;
+			const auto LobbyOwnerSteamID = SteamMatchmaking()->GetLobbyOwner(LobbySteamID);
 
 			const auto Count = SteamMatchmaking()->GetNumLobbyMembers(LobbySteamID);
 			for (auto i = 0; i < Count; ++i) {
 				const auto MemberSteamID = SteamMatchmaking()->GetLobbyMemberByIndex(LobbySteamID, i);
 
 				const auto ReadyState = std::atoi(SteamMatchmaking()->GetLobbyMemberData(LobbySteamID, MemberSteamID, "ready"));
-				//std::cout << MemberSteamID.ConvertToUint64() << (1 == ReadyState ? " (READY) " : "") << std::endl;
-				std::cout << (SteamUser()->GetSteamID() == MemberSteamID ? "ME" : "SOMEONE") << (1 == ReadyState ? " (READY) " : "") << std::endl;
+				const auto IsOwner = (MemberSteamID == LobbyOwnerSteamID);
+				std::cout << (IsOwner ? "* " : "") << MemberSteamID.ConvertToUint64() << (1 == ReadyState ? " (READY) " : "") << std::endl;
 			}
 			std::cout << "-----------------------------------------------" << std::endl;
 		}

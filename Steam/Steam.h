@@ -74,6 +74,8 @@ public:
 	void OnLobbyMatchListed(LobbyMatchList_t* pCallback, bool bIOFailure);
 	void OnLobbyEntered(LobbyEnter_t *pCallback, bool bIOFailure);
 
+	STEAM_CALLBACK(GameClient, OnLobbyGameCreated, LobbyGameCreated_t);
+
 	void CreateLobby();
 	void FindLobby();
 	void JoinLobby(const uint32 Index);
