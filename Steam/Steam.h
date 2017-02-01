@@ -75,6 +75,7 @@ public:
 	void OnLobbyEntered(LobbyEnter_t *pCallback, bool bIOFailure);
 
 	STEAM_CALLBACK(GameClient, OnLobbyGameCreated, LobbyGameCreated_t);
+	STEAM_CALLBACK(GameClient, OnLobbyChatMsg, LobbyChatMsg_t);
 
 	void CreateLobby();
 	void FindLobby();

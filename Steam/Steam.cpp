@@ -294,17 +294,19 @@ void Steam::PrintUsage()
 	std::cout << "t: Lobby Status" << std::endl;
 	std::cout << "r: Toggle READY" << std::endl;
 	std::cout << "s: Start Game" << std::endl;
+	std::cout << "m: Chat Message" << std::endl;
 	std::cout << "-----------------------------------------------" << std::endl;
 }
 void Steam::HandleInput(WPARAM wParam)
 {
 	//!< キーコード : https://msdn.microsoft.com/ja-jp/library/windows/desktop/dd375731(v=vs.85).aspx
-	static const WPARAM KEY_S = 0x53;
-	static const WPARAM KEY_L = 0x4c;
-	static const WPARAM KEY_F = 0x46;
 	static const WPARAM KEY_0 = 0x30;
 	static const WPARAM KEY_9 = 0x39;
+	static const WPARAM KEY_F = 0x46;
+	static const WPARAM KEY_L = 0x4c;
+	static const WPARAM KEY_M = 0x4d;
 	static const WPARAM KEY_R = 0x52;
+	static const WPARAM KEY_S = 0x53;
 	static const WPARAM KEY_T = 0x54;
 	static const WPARAM KEY_U = 0x55;
 
@@ -339,6 +341,15 @@ void Steam::HandleInput(WPARAM wParam)
 		//!< ロビー状態の表示
 		if (KEY_T == wParam) {
 			ClientInst->LobbyStatus(ClientInst->GetEnteredLobbySteamID());
+		}
+		if (KEY_M == wParam) {
+			if (ClientInst->GetEnteredLobbySteamID().IsValid()) {
+				if (SteamMatchmaking()) {
+					//!< ロビーにチャットメッセージを送る
+					const auto Message = "Hello World";
+					SteamMatchmaking()->SendLobbyChatMsg(ClientInst->GetEnteredLobbySteamID(), Message, strlen(Message) + 1);
+				}
+			}
 		}
 	}
 }
@@ -556,6 +567,10 @@ void GameClient::OnLobbyEntered(LobbyEnter_t *pCallback, bool bIOFailure)
 		}
 	}
 }
+
+/**
+@brief SteamMatchmaking()->SetLobbyGameServer() のコールバックを LobbyGameCreated_t で受ける
+*/
 void GameClient::OnLobbyGameCreated(LobbyGameCreated_t* pCallback)
 {
 	if (CSteamID(pCallback->m_ulSteamIDGameServer).IsValid()) {
@@ -563,6 +578,18 @@ void GameClient::OnLobbyGameCreated(LobbyGameCreated_t* pCallback)
 			SteamMatchmaking()->LeaveLobby(mEnteredLobbySteamID);
 			mEnteredLobbySteamID = CSteamID();
 		}
+	}
+}
+
+/**
+@brief SteamMatchmaking()->SendLobbyChatMsg() のコールバックを LobbyChatMsg_t で受ける
+*/
+void GameClient::OnLobbyChatMsg(LobbyChatMsg_t* pCallback)
+{
+	if (SteamMatchmaking()) {
+		char Buffer[BUFSIZ];
+		const auto WrittenBytes = SteamMatchmaking()->GetLobbyChatEntry(pCallback->m_ulSteamIDLobby, pCallback->m_iChatID, nullptr, Buffer, sizeof(Buffer), nullptr);
+		std::cout << "[" << pCallback->m_ulSteamIDUser << "] : " << Buffer << std::endl;
 	}
 }
 
@@ -620,7 +647,7 @@ void GameClient::LobbyStatus(const CSteamID LobbySteamID)
 
 				const auto ReadyState = std::atoi(SteamMatchmaking()->GetLobbyMemberData(LobbySteamID, MemberSteamID, "ready"));
 				const auto IsOwner = (MemberSteamID == LobbyOwnerSteamID);
-				std::cout << (IsOwner ? "* " : "") << MemberSteamID.ConvertToUint64() << (1 == ReadyState ? " (READY) " : "") << std::endl;
+				std::cout << (IsOwner ? "[Owner] " : "") << MemberSteamID.ConvertToUint64() << (1 == ReadyState ? " (READY) " : "") << std::endl;
 			}
 			std::cout << "-----------------------------------------------" << std::endl;
 		}
