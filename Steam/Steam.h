@@ -49,6 +49,11 @@ public:
 	GameServer();
 	virtual ~GameServer();
 
+	enum class EServerState
+	{
+		None,
+	};
+
 	virtual void OnTimer(HWND hWnd, HINSTANCE hInstance);
 	virtual void ReceiveData();
 
@@ -59,6 +64,7 @@ public:
 	STEAM_GAMESERVER_CALLBACK(GameServer, OnSteamServersDisconnected, SteamServersDisconnected_t);
 
 protected:
+	EServerState mState = EServerState::None;
 };
 
 class GameClient
@@ -66,6 +72,16 @@ class GameClient
 public:
 	GameClient();
 	virtual ~GameClient();
+
+	enum class EClientState
+	{
+		None,
+		InLobby,
+		CreatingLobby,
+		FindingLobby,
+		JoiningLobby,
+		Connecting,
+	};
 
 	virtual void OnTimer(HWND hWnd, HINSTANCE hInstance);
 	virtual void ReceiveData();
@@ -80,9 +96,8 @@ public:
 	void CreateLobby();
 	void FindLobby();
 	void JoinLobby(const uint32 Index);
-	void LeaveLobby();
 
-	static void LobbyStatus(const CSteamID LobbySteamID);
+	static void PrintLobbyStatus(const CSteamID LobbySteamID);
 	void ToggleReady();
 
 	CSteamID GetCreatedLobbySteamID() const { return mCreatedLobbySteamID; }
@@ -98,4 +113,6 @@ protected:
 	std::vector<CSteamID> mFoundLoobySteamID;
 
 	HAuthTicket mAuthTicket = k_HAuthTicketInvalid;
+
+	EClientState mState = EClientState::None;
 };
