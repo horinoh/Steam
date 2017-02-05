@@ -555,6 +555,25 @@ void GameClient::ReceiveData()
 }
 
 /**
+@brief のコールバックを SteamServersConnected_t で受ける
+*/
+void GameClient::OnSteamServersConnected(SteamServersConnected_t* pCallback)
+{
+}
+/**
+@brief のコールバックを SteamServersDisconnected_t で受ける
+*/
+void GameClient::OnSteamServersDisconnected(SteamServersDisconnected_t* pCallback)
+{
+}
+/**
+@brief のコールバックを SteamServerConnectFailure_t で受ける
+*/
+void GameClient::OnSteamServerConnectFailure(SteamServerConnectFailure_t* pCallback)
+{
+}
+
+/**
 @brief SteamMatchmaking()->CreateLobby() のコールバックを LobbyCreated_t で受ける
 */
 void GameClient::OnLobbyCreated(LobbyCreated_t *pCallback, bool bIOFailure)

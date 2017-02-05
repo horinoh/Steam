@@ -86,6 +86,10 @@ public:
 	virtual void OnTimer(HWND hWnd, HINSTANCE hInstance);
 	virtual void ReceiveData();
 
+	STEAM_CALLBACK(GameClient, OnSteamServersConnected, SteamServersConnected_t);
+	STEAM_CALLBACK(GameClient, OnSteamServersDisconnected, SteamServersDisconnected_t);
+	STEAM_CALLBACK(GameClient, OnSteamServerConnectFailure, SteamServerConnectFailure_t);
+
 	void OnLobbyCreated(LobbyCreated_t *pCallback, bool bIOFailure);
 	void OnLobbyMatchListed(LobbyMatchList_t* pCallback, bool bIOFailure);
 	void OnLobbyEntered(LobbyEnter_t *pCallback, bool bIOFailure);
