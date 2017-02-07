@@ -100,11 +100,11 @@ public:
 	void CreateLobby();
 	void FindLobby();
 	void JoinLobby(const uint32 Index);
+	void LeaveLobby();
 
 	static void PrintLobbyStatus(const CSteamID LobbySteamID);
 	void ToggleReady();
 
-	CSteamID GetCreatedLobbySteamID() const { return mCreatedLobbySteamID; }
 	CSteamID GetEnteredLobbySteamID() const { return mEnteredLobbySteamID; }
 
 protected:
@@ -112,7 +112,6 @@ protected:
 	CCallResult<GameClient, LobbyMatchList_t> mOnLobbyMatchListed;
 	CCallResult<GameClient, LobbyEnter_t> mOnLobbyEntered;
 
-	CSteamID mCreatedLobbySteamID = CSteamID();
 	CSteamID mEnteredLobbySteamID = CSteamID();
 	std::vector<CSteamID> mFoundLoobySteamID;
 

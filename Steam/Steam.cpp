@@ -291,6 +291,7 @@ void Steam::PrintUsage()
 	std::cout << "l : Create Lobby" << std::endl;
 	std::cout << "f : Find Lobby" << std::endl;
 	std::cout << "[0-9] : Join Lobby" << std::endl;
+	std::cout << "- : Leave Lobby" << std::endl;
 	std::cout << "t: Lobby Status" << std::endl;
 	std::cout << "r: Toggle READY" << std::endl;
 	std::cout << "s: Start Server" << std::endl;
@@ -309,6 +310,7 @@ void Steam::HandleInput(WPARAM wParam)
 	static const WPARAM KEY_S = 0x53;
 	static const WPARAM KEY_T = 0x54;
 	static const WPARAM KEY_U = 0x55;
+	static const WPARAM KEY_MINUS = 0xbd;
 
 	if (KEY_U == wParam) {
 		PrintUsage();
@@ -340,6 +342,10 @@ void Steam::HandleInput(WPARAM wParam)
 		//!< ロビー参加
 		if (KEY_0 <= wParam && KEY_9 >= wParam) {
 			ClientInst->JoinLobby(static_cast<uint32>(wParam - KEY_0));
+		}
+		//!< ロビー離脱
+		if (KEY_MINUS == wParam) {
+			ClientInst->LeaveLobby();
 		}
 		//!< READY 状態のトグル
 		if (KEY_R == wParam) {
@@ -483,14 +489,7 @@ GameClient::~GameClient()
 			mAuthTicket = k_HAuthTicketInvalid;
 		}
 
-		if (mCreatedLobbySteamID.IsValid()) {
-			SteamMatchmaking()->LeaveLobby(mCreatedLobbySteamID);
-			mCreatedLobbySteamID = CSteamID();
-		}
-		if (mEnteredLobbySteamID.IsValid()) {
-			SteamMatchmaking()->LeaveLobby(mEnteredLobbySteamID);
-			mEnteredLobbySteamID = CSteamID();
-		}
+		LeaveLobby();
 	}
 }
 
@@ -511,8 +510,7 @@ void GameClient::OnTimer(HWND hWnd, HINSTANCE hInstance)
 					SteamMatchmaking()->SetLobbyGameServer(mEnteredLobbySteamID, 0, 0, ServerSteamID);
 					
 					//!< ロビーは退出する
-					SteamMatchmaking()->LeaveLobby(mEnteredLobbySteamID);
-					mEnteredLobbySteamID = CSteamID();
+					LeaveLobby();
 
 					//!< サーバへクライアントが接続に入った事を伝える
 					const uint8 Data = 1;
@@ -579,14 +577,20 @@ void GameClient::OnSteamServerConnectFailure(SteamServerConnectFailure_t* pCallb
 void GameClient::OnLobbyCreated(LobbyCreated_t *pCallback, bool bIOFailure)
 {
 	if (!bIOFailure) {
-		mEnteredLobbySteamID = mCreatedLobbySteamID = pCallback->m_ulSteamIDLobby;
+		//!< 既にロビーに入っているなら抜ける
+		LeaveLobby();
+
+		mEnteredLobbySteamID = pCallback->m_ulSteamIDLobby;
 		if (SteamUser() && SteamMatchmaking()) {
 			mState = EClientState::InLobby;
 
-			const auto SteamID = SteamUser()->GetSteamID();
-			SteamMatchmaking()->SetLobbyData(mCreatedLobbySteamID, "name", (std::to_string(SteamID.ConvertToUint64()) + "'s LOBBY").c_str());
+			//!< 検索フィルタ用に、ゲーム名を設定しておく ["game"] = "SpaceWar"
+			SteamMatchmaking()->SetLobbyData(mEnteredLobbySteamID, "game", "SpaceWar");
 
-			std::cout << "Created : " << mCreatedLobbySteamID.ConvertToUint64() << " (" << SteamMatchmaking()->GetLobbyData(mCreatedLobbySteamID, "name")  << ")" << std::endl;
+			//SteamMatchmaking()->SetLobbyData(mEnteredLobbySteamID, "name", (std::to_string(SteamUser()->GetSteamID().ConvertToUint64()) + "'s LOBBY").c_str());
+			SteamMatchmaking()->SetLobbyData(mEnteredLobbySteamID, "name", (std::string(SteamFriends()->GetPersonaName()) + "'s LOBBY").c_str());
+
+			std::cout << "Created : " << mEnteredLobbySteamID.ConvertToUint64() << " (" << SteamMatchmaking()->GetLobbyData(mEnteredLobbySteamID, "name")  << ")" << std::endl;
 
 			PrintLobbyStatus(mEnteredLobbySteamID);
 		}
@@ -628,16 +632,17 @@ void GameClient::OnLobbyMatchListed(LobbyMatchList_t* pCallback, bool bIOFailure
 void GameClient::OnLobbyEntered(LobbyEnter_t *pCallback, bool bIOFailure)
 {
 	if (!bIOFailure) {
+		//!< 既にロビーに入っているなら抜ける
+		LeaveLobby();
+
 		if (SteamMatchmaking()) {
-			if (!mEnteredLobbySteamID.IsValid()) {
-				mState = EClientState::InLobby;
+			mState = EClientState::InLobby;
 
-				mEnteredLobbySteamID = pCallback->m_ulSteamIDLobby;
+			mEnteredLobbySteamID = pCallback->m_ulSteamIDLobby;
 
-				std::cout << "Entered : " << mEnteredLobbySteamID.ConvertToUint64() << " (" << SteamMatchmaking()->GetLobbyData(mEnteredLobbySteamID, "name") << ")" << std::endl;
+			std::cout << "Entered : " << mEnteredLobbySteamID.ConvertToUint64() << " (" << SteamMatchmaking()->GetLobbyData(mEnteredLobbySteamID, "name") << ")" << std::endl;
 
-				PrintLobbyStatus(mEnteredLobbySteamID);
-			}
+			PrintLobbyStatus(mEnteredLobbySteamID);
 		}
 	}
 }
@@ -691,6 +696,12 @@ void GameClient::CreateLobby()
 void GameClient::FindLobby()
 {
 	if (SteamMatchmaking()) {
+		//!< ["game"] = "SpaceWar" のものだけ
+		//SteamMatchmaking()->AddRequestLobbyListStringFilter("game", "SpaceWar", k_ELobbyComparisonEqual);
+
+		//!< (ここでは)見つけるのは 10 個まで
+		SteamMatchmaking()->AddRequestLobbyListResultCountFilter(10);
+
 		const auto Handle = SteamMatchmaking()->RequestLobbyList();
 		if (k_uAPICallInvalid != Handle) {
 			mOnLobbyMatchListed.Set(Handle, this, &GameClient::OnLobbyMatchListed);
@@ -708,6 +719,19 @@ void GameClient::JoinLobby(const uint32 Index)
 				mOnLobbyEntered.Set(Handle, this, &GameClient::OnLobbyEntered);
 				mState = EClientState::JoiningLobby;
 			}
+		}
+	}
+}
+
+void GameClient::LeaveLobby()
+{
+	if (SteamMatchmaking()) {
+		if (mEnteredLobbySteamID.IsValid()) {
+			SteamMatchmaking()->LeaveLobby(mEnteredLobbySteamID);
+
+			std::cout << "Leaved : " << mEnteredLobbySteamID.ConvertToUint64() << " (" << SteamMatchmaking()->GetLobbyData(mEnteredLobbySteamID, "name") << ")" << std::endl;
+
+			mEnteredLobbySteamID = CSteamID();
 		}
 	}
 }
