@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <random>
 
 #pragma warning(disable:4819)
 #pragma warning(disable:4996)
@@ -104,6 +105,10 @@ public:
 
 	static void PrintLobbyStatus(const CSteamID LobbySteamID);
 	void ToggleReady();
+
+	STEAM_CALLBACK(GameClient, OnUserStatsReceived, UserStatsReceived_t);
+	STEAM_CALLBACK(GameClient, OnUserStatsStored, UserStatsStored_t);
+	STEAM_CALLBACK(GameClient, OnUserAchievementStored, UserAchievementStored_t);
 
 	CSteamID GetEnteredLobbySteamID() const { return mEnteredLobbySteamID; }
 
