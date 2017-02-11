@@ -1,0 +1,71 @@
+"In Game Actions"
+{
+	"actions"
+	{
+		"InGameControls"
+		{
+			"title"					"#Set_Ingame"
+			"StickPadGyro"
+			{
+				"Move"
+				{
+					"title"			"#Action_Move"
+					"input_mode"	"joystick_move"
+				}
+			}
+			"AnalogTrigger"
+			{
+			}
+			"Button"
+			{
+				"Fire"				"#Action_Fire"
+			}
+		}
+		"MenuControls"
+		{
+			"title"		"#Set_Menu"
+			"StickPadGyro"
+			{
+			}
+			"AnalogTrigger"
+			{
+			}
+			"Button"
+			{
+				"Menu_Up"		"#Menu_Up"
+				"Menu_Down"		"#Menu_Down"
+				"Menu_Select"	"#Menu_Select"
+				"Menu_Cancel"	"#Menu_Cancel"
+			}
+		}
+	}
+	"localization"
+	{
+		"english"
+		{
+			"Set_Ingame"			"In-Game Controls"
+			"Set_Menu"				"Menu Controls"
+			
+			"Action_Move"			"Movement"
+			"Action_Fire"			"Fire Weapon"
+			
+			"Menu_Up"				"Up"
+			"Menu_Down"				"Down"
+			"Menu_Select"			"Select"
+			"Menu_Cancel"			"Cancel"
+		}
+		"japanese"
+		{
+			"Set_Ingame"			"ゲーム内操作"
+			"Set_Menu"				"メニュー操作"
+			
+			"Action_Move"			"移動"
+			"Action_Fire"			"発砲"
+			
+			"Menu_Up"				"上"
+			"Menu_Down"				"下"
+			"Menu_Select"			"決定"
+			"Menu_Cancel"			"キャンセル"
+		}
+	}
+}

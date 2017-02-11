@@ -240,6 +240,27 @@ Steam::Steam()
 				}
 			}
 
+			if (SteamController()) {
+				/**
+				@brief コントローラの設定 
+				@note 通常インストールの場合なら C:\Program Files(x86)\Steam\controller_config に game_actions_480.vdf という名前でアクションファイルを配置しておく。(controller_configディレクトリは無ければ作る)
+				@note Steam クライアントを起動し、右上のコントローラのアイコンで Big Picture モードへ - コンフィグ - コントローラ設定 - 希望のコントローラにチェックを入れる - 抜き差し
+				@note ライブラリ - Spacewar - ゲームを管理 - コントローラ設定 でキーをアサインする
+				*/
+				SteamController()->Init();
+
+				mInGameActionSet = SteamController()->GetActionSetHandle("InGameControls");
+				mMenuActionSet = SteamController()->GetActionSetHandle("MenuControls");
+
+				mMoveAction = SteamController()->GetAnalogActionHandle("Move");
+				mFireAction = SteamController()->GetDigitalActionHandle("Fire");
+
+				mMenuUpAction = SteamController()->GetDigitalActionHandle("Menu_Up");
+				mMenuDownAction = SteamController()->GetDigitalActionHandle("Menu_Down");
+				mMenuSelectAction = SteamController()->GetDigitalActionHandle("Menu_Select");
+				mMenuCancelAction = SteamController()->GetDigitalActionHandle("Menu_Cancel");
+			}
+
 			Steam::PrintUsage();
 
 			StartClient();
@@ -268,6 +289,47 @@ void Steam::OnTimer(HWND hWnd, HINSTANCE hInstance)
 	}
 	if (nullptr != mpGameClient) {
 		mpGameClient->OnTimer(hWnd, hInst);
+	}
+
+	if (SteamController()) {
+		ControllerHandle_t ControllerHandles[STEAM_CONTROLLER_MAX_COUNT];
+		const auto Count = SteamController()->GetConnectedControllers(ControllerHandles);
+		for (auto i = 0; i < Count; ++i) {
+			const auto CH = ControllerHandles[i];
+
+			//SteamController()->ActivateActionSet(CH, mMenuActionSet);
+			SteamController()->ActivateActionSet(CH, mInGameActionSet);
+
+			const auto MoveActionData = SteamController()->GetAnalogActionData(CH, mMoveAction);
+			const auto FireActionData = SteamController()->GetDigitalActionData(CH, mFireAction);
+
+			const auto MenuUpActionData = SteamController()->GetDigitalActionData(CH, mMenuUpAction);
+			const auto MenuDownActionData = SteamController()->GetDigitalActionData(CH, mMenuDownAction);
+			const auto MenuSelectActionData = SteamController()->GetDigitalActionData(CH, mMenuSelectAction);
+			const auto MenuCancelActionData = SteamController()->GetDigitalActionData(CH, mMenuCancelAction);
+
+			if (MoveActionData.bActive) {
+				if (fabs(MoveActionData.x) > FLT_EPSILON || fabs(MoveActionData.y) > FLT_EPSILON) {
+					std::cout << MoveActionData.x << ", " << MoveActionData.y << std::endl;
+				}
+			}
+			if (FireActionData.bState) {
+				std::cout << "Fire" << std::endl;
+			}
+
+			if (MenuUpActionData.bState) {
+				std::cout << "Up" << std::endl;
+			}
+			if (MenuDownActionData.bState) {
+				std::cout << "Down" << std::endl;
+			}
+			if (MenuSelectActionData.bState) {
+				std::cout << "Select" << std::endl;
+			}
+			if (MenuCancelActionData.bState) {
+				std::cout << "Cancel" << std::endl;
+			}
+		}
 	}
 }
 

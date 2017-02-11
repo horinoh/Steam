@@ -42,6 +42,17 @@ protected:
 
 	class GameServer* mpGameServer = nullptr;
 	class GameClient* mpGameClient = nullptr;
+
+	ControllerActionSetHandle_t mInGameActionSet;
+	ControllerActionSetHandle_t mMenuActionSet;
+
+	ControllerAnalogActionHandle_t mMoveAction;
+	ControllerDigitalActionHandle_t mFireAction;
+
+	ControllerDigitalActionHandle_t mMenuUpAction;
+	ControllerDigitalActionHandle_t mMenuDownAction;
+	ControllerDigitalActionHandle_t mMenuSelectAction;
+	ControllerDigitalActionHandle_t mMenuCancelAction;
 };
 
 class GameServer
