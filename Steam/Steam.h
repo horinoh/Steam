@@ -109,6 +109,8 @@ public:
 	STEAM_CALLBACK(GameClient, OnUserStatsReceived, UserStatsReceived_t);
 	STEAM_CALLBACK(GameClient, OnUserStatsStored, UserStatsStored_t);
 	STEAM_CALLBACK(GameClient, OnUserAchievementStored, UserAchievementStored_t);
+	void StoreStats();
+	void ResetStats();
 
 	CSteamID GetEnteredLobbySteamID() const { return mEnteredLobbySteamID; }
 
@@ -123,4 +125,7 @@ protected:
 	HAuthTicket mAuthTicket = k_HAuthTicketInvalid;
 
 	EClientState mState = EClientState::None;
+
+	int32 mNumGames = 0, mNumWins = 0, mNumLosses = 0;
+	float mFeetTraveled = 0.0f, mMaxFeetTraveled = 0.0f;
 };

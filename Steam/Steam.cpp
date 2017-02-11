@@ -486,6 +486,9 @@ GameClient::GameClient()
 }
 GameClient::~GameClient()
 {
+	StoreStats();
+	//ResetStats();
+	
 	if (SteamMatchmaking()) {
 		if (k_HAuthTicketInvalid != mAuthTicket) {
 			if (SteamUser()) {
@@ -795,69 +798,46 @@ void GameClient::ToggleReady()
 */
 void GameClient::OnUserStatsReceived(UserStatsReceived_t* pCallback)
 {
-#define UPLOAD_STATS 0
 	if (k_EResultOK == pCallback->m_eResult) {
 		if (SteamUserStats()) {
 			std::cout << "UserStatsReceived. GameID = " << pCallback->m_nGameID << ", UserName = " << SteamFriends()->GetFriendPersonaName(pCallback->m_steamIDUser) << std::endl;
-			{
-				std::cout << "Stats" << std::endl;
 
-				int32 NumGames, NumWins, NumLosses;
-				if (SteamUserStats()->GetStat("NumGames", &NumGames)) {
-					std::cout << "\tNumGames = " << NumGames << std::endl;
-				}
-				if (SteamUserStats()->GetStat("NumWins", &NumWins)) {
-					std::cout << "\tNumWins = " << NumWins << std::endl;
-				}
-				if (SteamUserStats()->GetStat("NumLosses", &NumLosses)) {
-					std::cout << "\tNumLosses = " << NumLosses << std::endl;
-				}
-
-				float FeetTraveled, MaxFeetTraveled;
-				if (SteamUserStats()->GetStat("FeetTraveled", &FeetTraveled)) {
-					std::cout << "\tFeetTraveled  = " << FeetTraveled << std::endl;
-				}
-				if (SteamUserStats()->GetStat("MaxFeetTraveled", &MaxFeetTraveled)) {
-					std::cout << "\tMaxFeetTraveled = " << MaxFeetTraveled << std::endl;
-				}
-
-				float AverageSpeed;
-				if (SteamUserStats()->GetStat("AverageSpeed", &AverageSpeed)) {
-					std::cout << "\tAverageSpeed = " << AverageSpeed << std::endl;
-				}
-
-#if UPLOAD_STATS
-				//!< セットするとローカルキャッシュを更新
-				SteamUserStats()->SetStat("NumGames", ++NumGames);
-				std::random_device rd;
-				if (rd() % 2) {
-					SteamUserStats()->SetStat("NumWins", ++NumWins);
-				}
-				else {
-					SteamUserStats()->SetStat("NumLosses", ++NumLosses);
-				}
-
-				const auto Duration = 60.0f;
-				const auto Feet = static_cast<float>(rd() % 100);
-				SteamUserStats()->SetStat("FeetTraveled", (FeetTraveled += Feet));
-				if (Feet > MaxFeetTraveled) {
-					SteamUserStats()->SetStat("MaxFeetTraveled", Feet);
-				}
-				SteamUserStats()->UpdateAvgRateStat("AverageSpeed", Feet, Duration);
-#endif
+			//!< スタッツ
+			std::cout << "Stats" << std::endl;
+			if (SteamUserStats()->GetStat("NumGames", &mNumGames)) {
+				std::cout << "\tNumGames = " << mNumGames << std::endl;
+			}
+			if (SteamUserStats()->GetStat("NumWins", &mNumWins)) {
+				std::cout << "\tNumWins = " << mNumWins << std::endl;
+			}
+			if (SteamUserStats()->GetStat("NumLosses", &mNumLosses)) {
+				std::cout << "\tNumLosses = " << mNumLosses << std::endl;
 			}
 
-			{
-				std::cout << "Achievements" << std::endl;
-				
-				//"ACH_WIN_ONE_GAME", "ACH_WIN_100_GAMES", "ACH_TRAVEL_FAR_ACCUM", "ACH_TRAVEL_FAR_SINGLE", "NEW_ACHIEVEMENT_0_4",
-				bool bUnlocked;
-				if (SteamUserStats()->GetAchievement("ACH_WIN_ONE_GAME", &bUnlocked)) {
-					std::cout << "\tACH_WIN_ONE_GAME : " << (bUnlocked ? "Unlocked" : "Locked") << std::endl;
-					std::cout << "\t\t" << SteamUserStats()->GetAchievementDisplayAttribute("ACH_WIN_ONE_GAME", "name") << std::endl;
-					std::cout << "\t\t" << SteamUserStats()->GetAchievementDisplayAttribute("ACH_WIN_ONE_GAME", "desc") << std::endl;
-					
-					const auto Icon = SteamUserStats()->GetAchievementIcon("ACH_WIN_ONE_GAME");
+			if (SteamUserStats()->GetStat("FeetTraveled", &mFeetTraveled)) {
+				std::cout << "\tFeetTraveled  = " << mFeetTraveled << std::endl;
+			}
+			if (SteamUserStats()->GetStat("MaxFeetTraveled", &mMaxFeetTraveled)) {
+				std::cout << "\tMaxFeetTraveled = " << mMaxFeetTraveled << std::endl;
+			}
+
+			float AverageSpeed;
+			if (SteamUserStats()->GetStat("AverageSpeed", &AverageSpeed)) {
+				std::cout << "\tAverageSpeed = " << AverageSpeed << std::endl;
+			}
+
+			//!< 実績
+			std::cout << "Achievements" << std::endl;
+			bool bUnlocked;
+			const auto Count = SteamUserStats()->GetNumAchievements();
+			for (uint32 i = 0; i < Count; ++i) {
+				const auto Name = SteamUserStats()->GetAchievementName(i);
+				if (SteamUserStats()->GetAchievement(Name, &bUnlocked)) {
+					std::cout << "\t" << Name << " : " << (bUnlocked ? "Unlocked" : "Locked") << std::endl;
+					std::cout << "\t\t" << SteamUserStats()->GetAchievementDisplayAttribute(Name, "name") << std::endl;
+					std::cout << "\t\t" << SteamUserStats()->GetAchievementDisplayAttribute(Name, "desc") << std::endl;
+
+					const auto Icon = SteamUserStats()->GetAchievementIcon(Name);
 					if (Icon && SteamUtils()) {
 						uint32 Width, Height;
 						if (SteamUtils()->GetImageSize(Icon, &Width, &Height)) {
@@ -866,43 +846,16 @@ void GameClient::OnUserStatsReceived(UserStatsReceived_t* pCallback)
 								auto RGBA = new uint8[Size];
 								if (SteamUtils()->GetImageRGBA(Icon, RGBA, Size)) {
 								}
-								delete [] RGBA;
+								delete[] RGBA;
 							}
 						}
 					}
 
 					//uint32 UnlockTime;
-					//if (SteamUserStats()->GetAchievementAndUnlockTime("ACH_WIN_ONE_GAME", &bUnlocked, &UnlockTime)) {
+					//if (SteamUserStats()->GetAchievementAndUnlockTime(Name, &bUnlocked, &UnlockTime)) {
 					//}
 				}
-				if (SteamUserStats()->GetAchievement("ACH_WIN_100_GAMES", &bUnlocked)) {
-					std::cout << "\tACH_WIN_100_GAMES : " << (bUnlocked ? "Unlocked" : "Locked") << std::endl;
-					std::cout << "\t\t" << SteamUserStats()->GetAchievementDisplayAttribute("ACH_WIN_100_GAMES", "name") << std::endl;
-					std::cout << "\t\t" << SteamUserStats()->GetAchievementDisplayAttribute("ACH_WIN_100_GAMES", "desc") << std::endl;
-				}
-				if (SteamUserStats()->GetAchievement("ACH_TRAVEL_FAR_ACCUM", &bUnlocked)) {
-					std::cout << "\tACH_TRAVEL_FAR_ACCUM : " << (bUnlocked ? "Unlocked" : "Locked") << std::endl;
-					std::cout << "\t\t" << SteamUserStats()->GetAchievementDisplayAttribute("ACH_TRAVEL_FAR_ACCUM", "name") << std::endl;
-					std::cout << "\t\t" << SteamUserStats()->GetAchievementDisplayAttribute("ACH_TRAVEL_FAR_ACCUM", "desc") << std::endl;
-				}
-				if (SteamUserStats()->GetAchievement("ACH_TRAVEL_FAR_SINGLE", &bUnlocked)) {
-					std::cout << "\tACH_TRAVEL_FAR_SINGLE : " << (bUnlocked ? "Unlocked" : "Locked") << std::endl;
-					std::cout << "\t\t" << SteamUserStats()->GetAchievementDisplayAttribute("ACH_TRAVEL_FAR_SINGLE", "name") << std::endl;
-					std::cout << "\t\t" << SteamUserStats()->GetAchievementDisplayAttribute("ACH_TRAVEL_FAR_SINGLE", "desc") << std::endl;
-				}
-
-#if UPLOAD_STATS
-				if (SteamUserStats()->SetAchievement("ACH_WIN_100_GAMES")) {
-				}
-				if (SteamUserStats()->IndicateAchievementProgress("ACH_WIN_100_GAMES", 75, 100)) {
-				}
-#endif
 			}
-
-#if UPLOAD_STATS
-			//!< サーバへ更新リクエストを送る
-			SteamUserStats()->StoreStats();
-#endif
 		}
 	}
 }
@@ -914,9 +867,67 @@ void GameClient::OnUserStatsStored(UserStatsStored_t* pCallback)
 }
 void GameClient::OnUserAchievementStored(UserAchievementStored_t* pCallback)
 {
-	std::cout << "UserStatsStored. GameID = " << pCallback->m_nGameID << std::endl;
-	std::cout << pCallback->m_rgchAchievementName << std::endl;
-	std::cout << pCallback->m_nCurProgress << " / " << pCallback->m_nMaxProgress << std::endl;
-	std::cout << pCallback->m_bGroupAchievement << std::endl; //!< グループ実績かどうか
+	std::cout << "UserAchievementStored. GameID = " << pCallback->m_nGameID << std::endl;
+	std::cout << "\t" << pCallback->m_rgchAchievementName << " is unlocked" << std::endl;
+	std::cout << "\t" << "Progress = " << pCallback->m_nCurProgress << " / " << pCallback->m_nMaxProgress << std::endl;
+	//std::cout << pCallback->m_bGroupAchievement << std::endl; //!< グループ実績かどうか
 }
+void GameClient::StoreStats()
+{
+	SteamUserStats()->SetStat("NumGames", ++mNumGames);
+	std::random_device rd;
+	if (rd() % 2) {
+		SteamUserStats()->SetStat("NumWins", ++mNumWins);
+	}
+	else {
+		SteamUserStats()->SetStat("NumLosses", ++mNumLosses);
+	}
+
+	const auto Duration = 60.0f;
+	const auto Feet = static_cast<float>(rd() % 501);
+	SteamUserStats()->SetStat("FeetTraveled", (mFeetTraveled += Feet));
+	if (Feet > mMaxFeetTraveled) {
+		SteamUserStats()->SetStat("MaxFeetTraveled", (mMaxFeetTraveled = Feet));
+	}
+	SteamUserStats()->UpdateAvgRateStat("AverageSpeed", Feet, Duration);
+
+	if (mNumWins >= 100) {
+		if (SteamUserStats()->SetAchievement("ACH_WIN_100_GAMES")) {}
+	}
+	else if (mNumWins > 0) {
+		if (SteamUserStats()->SetAchievement("ACH_WIN_ONE_GAME")) {}
+	}
+	else {
+		if (SteamUserStats()->IndicateAchievementProgress("ACH_WIN_100_GAMES", mNumWins, 100)) {}
+	}
+	if (mFeetTraveled > 5280) {
+		//!< 1マイル = 5280フィート
+		if (SteamUserStats()->SetAchievement("ACH_TRAVEL_FAR_ACCUM")) {}
+	}
+	if (Feet > 500) {
+		if (SteamUserStats()->SetAchievement("ACH_TRAVEL_FAR_SINGLE")) {}
+	}
+
+	SteamUserStats()->StoreStats();
+}
+
+void GameClient::ResetStats()
+{
+	if (SteamUserStats()) {
+		SteamUserStats()->ResetAllStats(true);
+
+		//mNumGames = mNumWins = mNumLosses = 0;
+		//SteamUserStats()->SetStat("NumGames", mNumGames);
+		//SteamUserStats()->SetStat("NumWins", mNumWins);
+		//SteamUserStats()->SetStat("NumLosses", mNumLosses);
+
+		//mFeetTraveled = mMaxFeetTraveled = 0.0f;
+		//SteamUserStats()->SetStat("FeetTraveled", mFeetTraveled);
+		//SteamUserStats()->SetStat("MaxFeetTraveled", mMaxFeetTraveled);
+		//SteamUserStats()->UpdateAvgRateStat("AverageSpeed", 0.0f, 0.0);
+
+		SteamUserStats()->StoreStats();
+	}
+}
+
 #pragma endregion
