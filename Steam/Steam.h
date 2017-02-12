@@ -3,6 +3,7 @@
 #include "resource.h"
 
 #include <iostream>
+#include <iomanip>
 #include <string>
 #include <vector>
 #include <random>
@@ -29,6 +30,8 @@ public:
 
 	void StartServer();
 	void StartClient();
+	
+	void StartController();
 
 	class GameServer* GetGameServer() { return mpGameServer; }
 	class GameClient* GetGameClient() { return mpGameClient; }
@@ -123,6 +126,9 @@ public:
 	void StoreStats();
 	void ResetStats();
 
+	void OnLeaderboardFindResult(LeaderboardFindResult_t *pFindLearderboardResult, bool bIOFailure);
+	void OnLeaderboardScoresDownloaded(LeaderboardScoresDownloaded_t *pLeaderboardScoresDownloaded, bool bIOFailure);
+
 	CSteamID GetEnteredLobbySteamID() const { return mEnteredLobbySteamID; }
 
 protected:
@@ -139,4 +145,7 @@ protected:
 
 	int32 mNumGames = 0, mNumWins = 0, mNumLosses = 0;
 	float mFeetTraveled = 0.0f, mMaxFeetTraveled = 0.0f;
+
+	CCallResult<GameClient, LeaderboardFindResult_t> mLeaderboardFindResult;
+	CCallResult<GameClient, LeaderboardScoresDownloaded_t> mLeaderboardScoresDownloaded;
 };

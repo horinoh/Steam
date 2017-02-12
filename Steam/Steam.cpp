@@ -240,29 +240,9 @@ Steam::Steam()
 				}
 			}
 
-			if (SteamController()) {
-				/**
-				@brief コントローラの設定 
-				@note 通常インストールの場合なら C:\Program Files(x86)\Steam\controller_config に game_actions_480.vdf という名前でアクションファイルを配置しておく。(controller_configディレクトリは無ければ作る)
-				@note Steam クライアントを起動し、右上のコントローラのアイコンで Big Picture モードへ - コンフィグ - コントローラ設定 - 希望のコントローラにチェックを入れる - 抜き差し
-				@note ライブラリ - Spacewar - ゲームを管理 - コントローラ設定 でキーをアサインする
-				*/
-				SteamController()->Init();
-
-				mInGameActionSet = SteamController()->GetActionSetHandle("InGameControls");
-				mMenuActionSet = SteamController()->GetActionSetHandle("MenuControls");
-
-				mMoveAction = SteamController()->GetAnalogActionHandle("Move");
-				mFireAction = SteamController()->GetDigitalActionHandle("Fire");
-
-				mMenuUpAction = SteamController()->GetDigitalActionHandle("Menu_Up");
-				mMenuDownAction = SteamController()->GetDigitalActionHandle("Menu_Down");
-				mMenuSelectAction = SteamController()->GetDigitalActionHandle("Menu_Select");
-				mMenuCancelAction = SteamController()->GetDigitalActionHandle("Menu_Cancel");
-			}
+			StartController();
 
 			Steam::PrintUsage();
-
 			StartClient();
 		}
 	}
@@ -344,6 +324,31 @@ void Steam::StartClient()
 	if (nullptr == mpGameClient) {
 		mpGameClient = new GameClient();
 	}
+}
+
+void Steam::StartController()
+{
+	if (SteamController()) {
+		/**
+		@brief コントローラの設定
+		@note 通常インストールの場合なら C:\Program Files(x86)\Steam\controller_config に game_actions_480.vdf という名前でアクションファイルを配置しておく。(controller_configディレクトリは無ければ作る)
+		@note Steam クライアントを起動し、右上のコントローラのアイコンで Big Picture モードへ - コンフィグ - コントローラ設定 - 希望のコントローラにチェックを入れる - 抜き差し
+		@note ライブラリ - Spacewar - ゲームを管理 - コントローラ設定 でキーをアサインする
+		*/
+		SteamController()->Init();
+
+		mInGameActionSet = SteamController()->GetActionSetHandle("InGameControls");
+		mMenuActionSet = SteamController()->GetActionSetHandle("MenuControls");
+
+		mMoveAction = SteamController()->GetAnalogActionHandle("Move");
+		mFireAction = SteamController()->GetDigitalActionHandle("Fire");
+
+		mMenuUpAction = SteamController()->GetDigitalActionHandle("Menu_Up");
+		mMenuDownAction = SteamController()->GetDigitalActionHandle("Menu_Down");
+		mMenuSelectAction = SteamController()->GetDigitalActionHandle("Menu_Select");
+		mMenuCancelAction = SteamController()->GetDigitalActionHandle("Menu_Cancel");
+	}
+
 }
 
 void Steam::PrintUsage()
@@ -541,9 +546,15 @@ void GameServer::OnSteamServersDisconnected(SteamServersDisconnected_t* pCallbac
 GameClient::GameClient()
 {
 	if (SteamUserStats()) {
+		//!< スタッツ(実績)のリクエスト
 		if (!SteamUserStats()->RequestCurrentStats()) {
 			std::cout << "RequestCurrentStats() failed" << std::endl;
 		}
+
+		//!< リーダボードの検索 or 作成リクエスト
+		const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodDescending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
+		//const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodAscending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
+		mLeaderboardFindResult.Set(Handle, this, &GameClient::OnLeaderboardFindResult);
 	}
 }
 GameClient::~GameClient()
@@ -851,12 +862,15 @@ void GameClient::ToggleReady()
 }
 
 /**
-@brief Spacewar
+@brief Spacewar では以下のスタッツ、実績が存在する
+
 	ユーザスタッツ
 	"NumGames", "NumWins", "NumLosses", "FeetTraveled", "AverageSpeed", "Unused2", "MaxFeetTraveled"
+
 	実績
 	"ACH_WIN_ONE_GAME", "ACH_WIN_100_GAMES", "ACH_TRAVEL_FAR_ACCUM", "ACH_TRAVEL_FAR_SINGLE", "NEW_ACHIEVEMENT_0_4",
-@note Spacewar にどんな ユーザスタッツ、実績 があるかはここで確認できる https://steamdb.info/app/480/stats/
+
+@note ここで確認できる https://steamdb.info/app/480/stats/
 */
 void GameClient::OnUserStatsReceived(UserStatsReceived_t* pCallback)
 {
@@ -899,6 +913,7 @@ void GameClient::OnUserStatsReceived(UserStatsReceived_t* pCallback)
 					std::cout << "\t\t" << SteamUserStats()->GetAchievementDisplayAttribute(Name, "name") << std::endl;
 					std::cout << "\t\t" << SteamUserStats()->GetAchievementDisplayAttribute(Name, "desc") << std::endl;
 
+					//!< アイコンデータの取得
 					const auto Icon = SteamUserStats()->GetAchievementIcon(Name);
 					if (Icon && SteamUtils()) {
 						uint32 Width, Height;
@@ -936,6 +951,8 @@ void GameClient::OnUserAchievementStored(UserAchievementStored_t* pCallback)
 }
 void GameClient::StoreStats()
 {
+	//!< (ここでは) ランダムに結果を作成
+
 	SteamUserStats()->SetStat("NumGames", ++mNumGames);
 	std::random_device rd;
 	if (rd() % 2) {
@@ -977,18 +994,39 @@ void GameClient::ResetStats()
 {
 	if (SteamUserStats()) {
 		SteamUserStats()->ResetAllStats(true);
-
-		//mNumGames = mNumWins = mNumLosses = 0;
-		//SteamUserStats()->SetStat("NumGames", mNumGames);
-		//SteamUserStats()->SetStat("NumWins", mNumWins);
-		//SteamUserStats()->SetStat("NumLosses", mNumLosses);
-
-		//mFeetTraveled = mMaxFeetTraveled = 0.0f;
-		//SteamUserStats()->SetStat("FeetTraveled", mFeetTraveled);
-		//SteamUserStats()->SetStat("MaxFeetTraveled", mMaxFeetTraveled);
-		//SteamUserStats()->UpdateAvgRateStat("AverageSpeed", 0.0f, 0.0);
-
 		SteamUserStats()->StoreStats();
+	}
+}
+
+void GameClient::OnLeaderboardFindResult(LeaderboardFindResult_t *pFindLearderboardResult, bool bIOFailure)
+{
+	if (!bIOFailure) {
+		if (pFindLearderboardResult->m_bLeaderboardFound) {
+			if (SteamUserStats()) {
+				std::cout << SteamUserStats()->GetLeaderboardName(pFindLearderboardResult->m_hSteamLeaderboard) << std::endl;
+				
+				//!< エントリのダウンロードを開始
+				const auto Handle = SteamUserStats()->DownloadLeaderboardEntries(pFindLearderboardResult->m_hSteamLeaderboard, ELeaderboardDataRequest::k_ELeaderboardDataRequestGlobal, 0, 10);
+				mLeaderboardScoresDownloaded.Set(Handle, this, &GameClient::OnLeaderboardScoresDownloaded);
+			}
+		}
+	}
+}
+void GameClient::OnLeaderboardScoresDownloaded(LeaderboardScoresDownloaded_t *pLeaderboardScoresDownloaded, bool bIOFailure)
+{
+	if (!bIOFailure) {
+		if (SteamUserStats()) {
+			std::cout << "Leaderboards" << std::endl;
+			for (auto i = 0; i < pLeaderboardScoresDownloaded->m_cEntryCount; ++i) {
+				LeaderboardEntry_t Entry;
+				if (SteamUserStats()->GetDownloadedLeaderboardEntry(pLeaderboardScoresDownloaded->m_hSteamLeaderboardEntries, i, &Entry, nullptr, 0)) {
+					std::cout << "\t[" << std::setfill('0') << std::setw(2) << Entry.m_nGlobalRank << "] ";
+					std::cout << std::setfill('0') << std::setw(3) << Entry.m_nScore << " ... ";
+					std::cout << SteamFriends()->GetFriendPersonaName(Entry.m_steamIDUser);
+					std::cout << std::endl;
+				}
+			}
+		}
 	}
 }
 
