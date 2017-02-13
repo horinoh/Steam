@@ -552,16 +552,14 @@ GameClient::GameClient()
 		}
 
 		//!< リーダボードの検索 or 作成リクエスト
-		const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodDescending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
-		//const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodAscending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
-		mLeaderboardFindResult.Set(Handle, this, &GameClient::OnLeaderboardFindResult);
+		FindOrCreateLeaderboard();
 	}
 }
 GameClient::~GameClient()
 {
 	StoreStats();
 	//ResetStats();
-	
+
 	if (SteamMatchmaking()) {
 		if (k_HAuthTicketInvalid != mAuthTicket) {
 			if (SteamUser()) {
@@ -1004,9 +1002,12 @@ void GameClient::OnLeaderboardFindResult(LeaderboardFindResult_t *pFindLearderbo
 		if (pFindLearderboardResult->m_bLeaderboardFound) {
 			if (SteamUserStats()) {
 				std::cout << SteamUserStats()->GetLeaderboardName(pFindLearderboardResult->m_hSteamLeaderboard) << std::endl;
-				
+
+				//!< リーダボードを覚えておく
+				mSteamLeaderboard = pFindLearderboardResult->m_hSteamLeaderboard;
+
 				//!< エントリのダウンロードを開始
-				const auto Handle = SteamUserStats()->DownloadLeaderboardEntries(pFindLearderboardResult->m_hSteamLeaderboard, ELeaderboardDataRequest::k_ELeaderboardDataRequestGlobal, 0, 10);
+				const auto Handle = SteamUserStats()->DownloadLeaderboardEntries(mSteamLeaderboard, ELeaderboardDataRequest::k_ELeaderboardDataRequestGlobal, 0, 10);
 				mLeaderboardScoresDownloaded.Set(Handle, this, &GameClient::OnLeaderboardScoresDownloaded);
 			}
 		}
@@ -1028,6 +1029,40 @@ void GameClient::OnLeaderboardScoresDownloaded(LeaderboardScoresDownloaded_t *pL
 			}
 		}
 	}
+}
+
+void GameClient::OnLeaderboardScoreUploaded(LeaderboardScoreUploaded_t *pFindLearderboardResult, bool bIOFailure)
+{
+	if (!bIOFailure) {
+		if (pFindLearderboardResult->m_bSuccess) {
+			if (pFindLearderboardResult->m_bScoreChanged) {
+				std::cout << "Leaderboard Uploaded" << std::endl;
+
+				std::cout << "\tScore = " << pFindLearderboardResult->m_nScore << ", ";
+				std::cout << "Rank = " << pFindLearderboardResult->m_nGlobalRankPrevious << " -> " << pFindLearderboardResult->m_nGlobalRankNew << std::endl;
+
+				//!< #MY_TODO ユーザ生成コンテンツ(リプレイ、ゴースト等)をアタッチしたい場合
+				//UGCHandle_t UGC = k_UGCHandleInvalid;
+				//if (k_UGCHandleInvalid != UGC) {
+				//	const auto Handle = SteamUserStats()->AttachLeaderboardUGC(mSteamLeaderboard, UGC);
+				//}
+			}
+		}
+	}
+}
+void GameClient::FindOrCreateLeaderboard()
+{
+	const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodDescending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
+	//const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodAscending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
+	mLeaderboardFindResult.Set(Handle, this, &GameClient::OnLeaderboardFindResult);
+}
+void GameClient::UploadLeaderboard()
+{
+	//!< リーダボードのアップロード
+	std::random_device rd;
+	const int32 Score = rd() % 101;
+	const auto Handle = SteamUserStats()->UploadLeaderboardScore(mSteamLeaderboard, k_ELeaderboardUploadScoreMethodKeepBest, Score, nullptr, 0);
+	mLeaderboardScoreUploaded.Set(Handle, this, &GameClient::OnLeaderboardScoreUploaded);
 }
 
 #pragma endregion

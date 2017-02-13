@@ -128,6 +128,9 @@ public:
 
 	void OnLeaderboardFindResult(LeaderboardFindResult_t *pFindLearderboardResult, bool bIOFailure);
 	void OnLeaderboardScoresDownloaded(LeaderboardScoresDownloaded_t *pLeaderboardScoresDownloaded, bool bIOFailure);
+	void OnLeaderboardScoreUploaded(LeaderboardScoreUploaded_t *pFindLearderboardResult, bool bIOFailure);
+	void FindOrCreateLeaderboard();
+	void UploadLeaderboard();
 
 	CSteamID GetEnteredLobbySteamID() const { return mEnteredLobbySteamID; }
 
@@ -146,6 +149,8 @@ protected:
 	int32 mNumGames = 0, mNumWins = 0, mNumLosses = 0;
 	float mFeetTraveled = 0.0f, mMaxFeetTraveled = 0.0f;
 
+	SteamLeaderboard_t mSteamLeaderboard;
 	CCallResult<GameClient, LeaderboardFindResult_t> mLeaderboardFindResult;
 	CCallResult<GameClient, LeaderboardScoresDownloaded_t> mLeaderboardScoresDownloaded;
+	CCallResult<GameClient, LeaderboardScoreUploaded_t> mLeaderboardScoreUploaded;
 };
