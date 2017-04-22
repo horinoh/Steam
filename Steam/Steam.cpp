@@ -1071,7 +1071,7 @@ void GameClient::UploadLeaderboard()
 void GameClient::OnCreateItemResult(CreateItemResult_t *pCallback, bool bIOFailure)
 {
 	if (!bIOFailure && k_EResultOK == pCallback->m_eResult) {
-		std::cout << "UGC item created" << std::endl;
+		std::cout << "UGC created" << std::endl;
 		
 		//!< 契約に同意させるとかの処理
 		if (pCallback->m_bUserNeedsToAcceptWorkshopLegalAgreement) {
@@ -1098,9 +1098,13 @@ void GameClient::OnCreateItemResult(CreateItemResult_t *pCallback, bool bIOFailu
 				//if (!UGC->SetItemPreview(UpdateHandle, "D:/GitHub/Steamworks/Steam/Preview.JPG")) { //!< 1MB未満と書いてあるがもっと小さくなくてはダメくさい？
 				//	std::cout << "SetItemPreview() failed" << std::endl;
 				//}
-				//!<「絶対パス」を指定すること
-				if (!UGC->SetItemContent(UpdateHandle, "D:/GitHub/Steamworks/Steam/UGC")) { 
-					std::cout << "SetItemContent() failed" << std::endl;
+				
+				//!< 「絶対パス」を指定すること
+				char Fullpath[BUFSIZ];
+				if (GetFullPathNameA("./UGC", sizeof(Fullpath), Fullpath, nullptr)) {
+					if (!UGC->SetItemContent(UpdateHandle, Fullpath)) {
+						std::cout << "SetItemContent() failed" << std::endl;
+					}
 				}
 				if (!UGC->SetItemMetadata(UpdateHandle, "This is Metadata")) {
 					std::cout << "SetItemMetadata() failed" << std::endl;
