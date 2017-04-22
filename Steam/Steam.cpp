@@ -553,6 +553,9 @@ GameClient::GameClient()
 
 		//!< リーダボードの検索 or 作成リクエスト
 		FindOrCreateLeaderboard();
+		
+		//!< UGC(User Generated Content) の作成
+		CreateUGC();
 	}
 }
 GameClient::~GameClient()
@@ -1065,4 +1068,139 @@ void GameClient::UploadLeaderboard()
 	mLeaderboardScoreUploaded.Set(Handle, this, &GameClient::OnLeaderboardScoreUploaded);
 }
 
+void GameClient::OnCreateItemResult(CreateItemResult_t *pCallback, bool bIOFailure)
+{
+	if (!bIOFailure && k_EResultOK == pCallback->m_eResult) {
+		std::cout << "UGC item created" << std::endl;
+		
+		//!< 契約に同意させるとかの処理
+		if (pCallback->m_bUserNeedsToAcceptWorkshopLegalAgreement) {
+			const auto Friend = SteamFriends();
+			if (nullptr != Friend) {
+				Friend->ActivateGameOverlayToWebPage((std::string("steam://url/CommunityFilePage/") + std::to_string(pCallback->m_nPublishedFileId)).c_str());
+			}
+		}
+
+		const auto UGC = SteamUGC();
+		const auto Util = SteamUtils();
+		if (nullptr != UGC && nullptr != Util) {
+			const auto AppID = Util->GetAppID();
+			
+			//!< (作成した)アイテムのコンテンツを指定する
+			auto UpdateHandle = SteamUGC()->StartItemUpdate(AppID, pCallback->m_nPublishedFileId);
+			if (k_uAPICallInvalid != UpdateHandle) {
+				if (!UGC->SetItemTitle(UpdateHandle, "UGC Title")) {
+					std::cout << "SetItemTitle() failed" << std::endl;
+				}
+				if (!UGC->SetItemDescription(UpdateHandle, "UGC Description")) {
+					std::cout << "SetItemDescription() failed" << std::endl;
+				}
+				//if (!UGC->SetItemPreview(UpdateHandle, "D:/GitHub/Steamworks/Steam/Preview.JPG")) { //!< 1MB未満と書いてあるがもっと小さくなくてはダメくさい？
+				//	std::cout << "SetItemPreview() failed" << std::endl;
+				//}
+				//!<「絶対パス」を指定すること
+				if (!UGC->SetItemContent(UpdateHandle, "D:/GitHub/Steamworks/Steam/UGC")) { 
+					std::cout << "SetItemContent() failed" << std::endl;
+				}
+				if (!UGC->SetItemMetadata(UpdateHandle, "This is Metadata")) {
+					std::cout << "SetItemMetadata() failed" << std::endl;
+				}
+
+				//!< サブミットする
+				auto SubmitHandle = UGC->SubmitItemUpdate(UpdateHandle, nullptr);
+				if (k_uAPICallInvalid != SubmitHandle) {
+					mSubmitItemUpdateResult.Set(SubmitHandle, this, &GameClient::OnSubmitItemUpdateResult);
+
+					//!< パブリッシュファイルIDを覚えておく
+					mPublishedFileId = pCallback->m_nPublishedFileId;
+				}
+			}
+		}
+	}
+}
+void GameClient::OnSubmitItemUpdateResult(SubmitItemUpdateResult_t* pCallback, bool bIOFailure)
+{
+	if (!bIOFailure && k_EResultOK == pCallback->m_eResult) {
+		if (pCallback->m_bUserNeedsToAcceptWorkshopLegalAgreement) {}
+
+		std::cout << "UGC sumbitted" << std::endl;
+
+		//!< ここでは(サブミットした)アイテムを自らサブスクライブする
+		const auto UGC = SteamUGC();
+		if (nullptr != UGC) {
+			auto Handle = UGC->SubscribeItem(mPublishedFileId);
+			if (k_uAPICallInvalid != Handle) {
+				mRemoteStorageSubscribePublishedFileResult.Set(Handle, this, &GameClient::OnRemoteStorageSubscribePublishedFileResult);
+			}
+		}
+	}
+}
+void GameClient::OnRemoteStorageSubscribePublishedFileResult(RemoteStorageSubscribePublishedFileResult_t *pCallback, bool bIOFailure)
+{
+	if (!bIOFailure && k_EResultOK == pCallback->m_eResult) {
+		std::cout << "UGC subscribed : " << pCallback->m_nPublishedFileId << std::endl;
+
+#if 0
+		//!< アンサブスクライブする場合はこんな感じにする
+		const auto UGC = SteamUGC();
+		if (nullptr != UGC) {
+			auto Handle = UGC->SubscribeItem(pCallback->m_nPublishedFileId);
+			if (k_uAPICallInvalid != Handle) {
+				mRemoteStorageUnsubscribePublishedFileResult.Set(Handle, this, &GameClient::OnRemoteStorageUnsubscribePublishedFileResult);
+			}
+		}
+#endif
+	}
+}
+void GameClient::OnRemoteStorageUnsubscribePublishedFileResult(RemoteStorageUnsubscribePublishedFileResult_t *pCallback, bool bIOFailure)
+{
+	if (!bIOFailure && k_EResultOK == pCallback->m_eResult) {
+		std::cout << "UGC unsubscribed : " << pCallback->m_nPublishedFileId << std::endl;
+	}
+}
+void GameClient::OnRemoteStoragePublishedFileSubscribed(RemoteStoragePublishedFileSubscribed_t *pCallback)
+{
+	//!< 外部からサブスクライブされた (アプリに関係なく呼び出されるので AppID をチェックすること)
+	const auto Util = SteamUtils();
+	if (nullptr != Util && Util->GetAppID() == pCallback->m_nAppID) {
+		std::cout << "UGC subscribed : " << pCallback->m_nPublishedFileId << std::endl;
+	}
+}
+void GameClient::OnRemoteStoragePublishedFileUnsubscribed(RemoteStoragePublishedFileUnsubscribed_t *pCallback)
+{
+	//!< 外部からアンサブスクライブされた (アプリに関係なく呼び出されるので AppID をチェックすること)
+	const auto Util = SteamUtils();
+	if (nullptr != Util && Util->GetAppID() == pCallback->m_nAppID) {
+		std::cout << "UGC unsubscribed : " << pCallback->m_nPublishedFileId << std::endl;
+	}
+}
+void GameClient::OnItemInstalled(ItemInstalled_t* pCallback)
+{
+	const auto Util = SteamUtils();
+	if (nullptr != Util && Util->GetAppID() == pCallback->m_unAppID) {
+		const auto UGC = SteamUGC();
+		if (nullptr != UGC) {
+			uint64 Size;
+			char Folder[BUFSIZ];
+			uint32 TimeStamp;
+			if (UGC->GetItemInstallInfo(pCallback->m_nPublishedFileId, &Size, Folder, sizeof(Folder), &TimeStamp)) {
+				//!< このフォルダに SteamUGC()->SetItemContent() で指定したフォルダ以下のものがインストールされている
+				std::cout << "UGC " << pCallback->m_nPublishedFileId << " is installed in : " << Folder << std::endl;
+			}
+		}
+	}
+}
+void GameClient::CreateUGC()
+{
+	const auto UGC = SteamUGC();
+	const auto Util = SteamUtils();
+	if (nullptr != UGC && nullptr != Util) {
+		//!< アイテム作成
+		const auto AppID = Util->GetAppID();
+		auto Handle = UGC->CreateItem(AppID, EWorkshopFileType::k_EWorkshopFileTypeCommunity);
+		if (k_uAPICallInvalid != Handle) {
+			mCreateItemResult.Set(Handle, this, &GameClient::OnCreateItemResult);
+		}
+	}
+}
 #pragma endregion

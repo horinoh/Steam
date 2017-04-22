@@ -132,6 +132,15 @@ public:
 	void FindOrCreateLeaderboard();
 	void UploadLeaderboard();
 
+	void OnCreateItemResult(CreateItemResult_t *pCallback, bool bIOFailure);
+	void OnSubmitItemUpdateResult(SubmitItemUpdateResult_t* pCallback, bool bIOFailure);
+	void OnRemoteStorageSubscribePublishedFileResult(RemoteStorageSubscribePublishedFileResult_t *pCallback, bool bIOFailure);
+	void OnRemoteStorageUnsubscribePublishedFileResult(RemoteStorageUnsubscribePublishedFileResult_t *pCallback, bool bIOFailure);
+	STEAM_CALLBACK(GameClient, OnRemoteStoragePublishedFileSubscribed, RemoteStoragePublishedFileSubscribed_t);
+	STEAM_CALLBACK(GameClient, OnRemoteStoragePublishedFileUnsubscribed, RemoteStoragePublishedFileUnsubscribed_t);
+	STEAM_CALLBACK(GameClient, OnItemInstalled, ItemInstalled_t);
+	void CreateUGC();
+
 	CSteamID GetEnteredLobbySteamID() const { return mEnteredLobbySteamID; }
 
 protected:
@@ -153,4 +162,10 @@ protected:
 	CCallResult<GameClient, LeaderboardFindResult_t> mLeaderboardFindResult;
 	CCallResult<GameClient, LeaderboardScoresDownloaded_t> mLeaderboardScoresDownloaded;
 	CCallResult<GameClient, LeaderboardScoreUploaded_t> mLeaderboardScoreUploaded;
+
+	CCallResult<GameClient, CreateItemResult_t> mCreateItemResult;
+	CCallResult<GameClient, SubmitItemUpdateResult_t> mSubmitItemUpdateResult;
+	CCallResult<GameClient, RemoteStorageSubscribePublishedFileResult_t> mRemoteStorageSubscribePublishedFileResult;
+	CCallResult<GameClient, RemoteStorageUnsubscribePublishedFileResult_t> mRemoteStorageUnsubscribePublishedFileResult;
+	PublishedFileId_t mPublishedFileId = 0;
 };
