@@ -136,10 +136,17 @@ public:
 	void OnSubmitItemUpdateResult(SubmitItemUpdateResult_t* pCallback, bool bIOFailure);
 	void OnRemoteStorageSubscribePublishedFileResult(RemoteStorageSubscribePublishedFileResult_t *pCallback, bool bIOFailure);
 	void OnRemoteStorageUnsubscribePublishedFileResult(RemoteStorageUnsubscribePublishedFileResult_t *pCallback, bool bIOFailure);
+	void OnSteamUGCQueryCompleted(SteamUGCQueryCompleted_t *pCallback, bool bIOFailure);
 	STEAM_CALLBACK(GameClient, OnRemoteStoragePublishedFileSubscribed, RemoteStoragePublishedFileSubscribed_t);
 	STEAM_CALLBACK(GameClient, OnRemoteStoragePublishedFileUnsubscribed, RemoteStoragePublishedFileUnsubscribed_t);
+	//STEAM_CALLBACK(GameClient, OnRemoteStorageEnumerateUserPublishedFilesResult, RemoteStorageEnumerateUserPublishedFilesResult_t);
+	//STEAM_CALLBACK(GameClient, OnRemoteStorageEnumerateUserSubscribedFilesResult, RemoteStorageEnumerateUserSubscribedFilesResult_t);
+	//STEAM_CALLBACK(GameClient, OnRemoteStorageEnumerateWorkshopFilesResult, RemoteStorageEnumerateWorkshopFilesResult_t);
+	//STEAM_CALLBACK(GameClient, OnRemoteStorageEnumerateUserSharedWorkshopFilesResult, RemoteStorageEnumerateUserSharedWorkshopFilesResult_t);
+	//STEAM_CALLBACK(GameClient, OnRemoteStorageEnumeratePublishedFilesByUserActionResult, RemoteStorageEnumeratePublishedFilesByUserActionResult_t);
 	STEAM_CALLBACK(GameClient, OnItemInstalled, ItemInstalled_t);
 	void CreateUGC();
+	void QueryUGC();
 
 	CSteamID GetEnteredLobbySteamID() const { return mEnteredLobbySteamID; }
 
@@ -167,5 +174,7 @@ protected:
 	CCallResult<GameClient, SubmitItemUpdateResult_t> mSubmitItemUpdateResult;
 	CCallResult<GameClient, RemoteStorageSubscribePublishedFileResult_t> mRemoteStorageSubscribePublishedFileResult;
 	CCallResult<GameClient, RemoteStorageUnsubscribePublishedFileResult_t> mRemoteStorageUnsubscribePublishedFileResult;
+	CCallResult<GameClient, SteamUGCQueryCompleted_t> mSteamUGCQueryCompleted;
+
 	PublishedFileId_t mPublishedFileId = 0;
 };

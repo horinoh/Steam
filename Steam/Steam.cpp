@@ -554,8 +554,11 @@ GameClient::GameClient()
 		//!< リーダボードの検索 or 作成リクエスト
 		FindOrCreateLeaderboard();
 		
+		//!< UGC(User Generated Content)  のクエリ
+		QueryUGC();
+
 		//!< UGC(User Generated Content) の作成
-		CreateUGC();
+		//CreateUGC();
 	}
 }
 GameClient::~GameClient()
@@ -1110,6 +1113,9 @@ void GameClient::OnCreateItemResult(CreateItemResult_t *pCallback, bool bIOFailu
 					std::cout << "SetItemMetadata() failed" << std::endl;
 				}
 
+				//!< 削除したい場合 : 削除する方法は無いので、パブリックから見えないようにすることで代用
+				//UGC->SetItemVisibility(UpdateHandle, ERemoteStoragePublishedFileVisibility::k_ERemoteStoragePublishedFileVisibilityPrivate);
+
 				//!< サブミットする
 				auto SubmitHandle = UGC->SubmitItemUpdate(UpdateHandle, nullptr);
 				if (k_uAPICallInvalid != SubmitHandle) {
@@ -1162,6 +1168,41 @@ void GameClient::OnRemoteStorageUnsubscribePublishedFileResult(RemoteStorageUnsu
 		std::cout << "UGC unsubscribed : " << pCallback->m_nPublishedFileId << std::endl;
 	}
 }
+
+void GameClient::OnSteamUGCQueryCompleted(SteamUGCQueryCompleted_t *pCallback, bool bIOFailure)
+{
+	if (!bIOFailure && k_EResultOK == pCallback->m_eResult) {
+		std::cout << "UGC query completed : " << pCallback->m_unNumResultsReturned << " / " << pCallback->m_unTotalMatchingResults << std::endl;
+
+		if (pCallback->m_unNumResultsReturned) {
+			const auto UGC = SteamUGC();
+			if (nullptr != UGC) {
+				for (uint32 i = 0; i < pCallback->m_unNumResultsReturned; ++i) {
+					SteamUGCDetails_t Details;
+					if (UGC->GetQueryUGCResult(pCallback->m_handle, i, &Details)) {
+						std::cout << "\tFileID : " << Details.m_nPublishedFileId << std::endl;
+						
+						if (EWorkshopFileType::k_EWorkshopFileTypeCommunity == Details.m_eFileType) {
+							std::cout << "\tFileType : Community" << std::endl;
+						}
+						else if (EWorkshopFileType::k_EWorkshopFileTypeGameManagedItem == Details.m_eFileType) {
+							std::cout << "\tFileType : GameManaged" << std::endl;
+						}
+						else {
+							std::cout << "\tFileType : " << Details.m_eFileType << std::endl;
+						}
+
+						std::cout << "\tTitle : " << Details.m_rgchTitle << std::endl;
+						std::cout << "\tDescrition : " << Details.m_rgchDescription << std::endl;
+						std::cout << "\tSize : " << Details.m_nFileSize << std::endl;
+						std::cout << std::endl;
+					}
+				}
+			}
+		}
+	}
+}
+
 void GameClient::OnRemoteStoragePublishedFileSubscribed(RemoteStoragePublishedFileSubscribed_t *pCallback)
 {
 	//!< 外部からサブスクライブされた (アプリに関係なく呼び出されるので AppID をチェックすること)
@@ -1178,6 +1219,12 @@ void GameClient::OnRemoteStoragePublishedFileUnsubscribed(RemoteStoragePublished
 		std::cout << "UGC unsubscribed : " << pCallback->m_nPublishedFileId << std::endl;
 	}
 }
+//void GameClient::OnRemoteStorageEnumerateUserPublishedFilesResult(RemoteStorageEnumerateUserPublishedFilesResult_t* pCallback){}
+//void GameClient::OnRemoteStorageEnumerateUserSubscribedFilesResult(RemoteStorageEnumerateUserSubscribedFilesResult_t* pCallback){}
+//void GameClient::OnRemoteStorageEnumerateWorkshopFilesResult(RemoteStorageEnumerateWorkshopFilesResult_t* pCallback){}
+//void GameClient::OnRemoteStorageEnumerateUserSharedWorkshopFilesResult(RemoteStorageEnumerateUserSharedWorkshopFilesResult_t* pCallback){}
+//void GameClient::OnRemoteStorageEnumeratePublishedFilesByUserActionResult(RemoteStorageEnumeratePublishedFilesByUserActionResult_t* pCallback){}
+
 void GameClient::OnItemInstalled(ItemInstalled_t* pCallback)
 {
 	const auto Util = SteamUtils();
@@ -1201,10 +1248,45 @@ void GameClient::CreateUGC()
 	if (nullptr != UGC && nullptr != Util) {
 		//!< アイテム作成
 		const auto AppID = Util->GetAppID();
-		auto Handle = UGC->CreateItem(AppID, EWorkshopFileType::k_EWorkshopFileTypeCommunity);
+
+		const auto FileType = EWorkshopFileType::k_EWorkshopFileTypeGameManagedItem;
+		//const auto FileType = EWorkshopFileType::k_EWorkshopFileTypeCommunity;
+
+		auto Handle = UGC->CreateItem(AppID, FileType);
 		if (k_uAPICallInvalid != Handle) {
 			mCreateItemResult.Set(Handle, this, &GameClient::OnCreateItemResult);
 		}
 	}
 }
+
+void GameClient::QueryUGC()
+{
+	const auto UGC = SteamUGC();
+	const auto User = SteamUser();
+	const auto Util = SteamUtils();
+	if (nullptr != UGC && nullptr != User && nullptr != Util) {
+		const auto AccountID = User->GetSteamID().GetAccountID();
+		const auto AppID = Util->GetAppID();
+		
+		const auto ListType = EUserUGCList::k_EUserUGCList_Published;
+		//const auto ListType = EUserUGCList::k_EUserUGCList_Subscribed;
+		
+		const auto MatchingType = EUGCMatchingUGCType::k_EUGCMatchingUGCType_All;
+		//const auto MathcingType = EUGCMatchingUGCType::k_EUGCMatchingUGCType_GameManagedItems;
+
+		const auto QueryHandle = UGC->CreateQueryUserUGCRequest(AccountID,
+			ListType,
+			MatchingType,
+			EUserUGCListSortOrder::k_EUserUGCListSortOrder_CreationOrderAsc,
+			AppID, AppID, 1);
+
+		if (k_UGCQueryHandleInvalid != QueryHandle) {
+			auto Handle = SteamUGC()->SendQueryUGCRequest(QueryHandle);
+			if (k_uAPICallInvalid != Handle) {
+				mSteamUGCQueryCompleted.Set(Handle, this, &GameClient::OnSteamUGCQueryCompleted);
+			}
+		}
+	}
+}
+
 #pragma endregion
