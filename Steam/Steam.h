@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <random>
+#include <algorithm>
 
 #pragma warning(disable:4819)
 #pragma warning(disable:4996)
@@ -148,6 +149,12 @@ public:
 	void CreateUGC();
 	void QueryUGC();
 
+	void OnRemoteStorageFileReadAsyncComplete(RemoteStorageFileReadAsyncComplete_t *pCallback, bool bIOFailure);
+	void OnRemoteStorageFileWriteAsyncComplete(RemoteStorageFileWriteAsyncComplete_t *pCallback, bool bIOFailure);
+	void QueryRemoteStoage();
+	void WriteRemoteStorage();
+	void ReadRemmoteStorage();
+
 	CSteamID GetEnteredLobbySteamID() const { return mEnteredLobbySteamID; }
 
 protected:
@@ -175,6 +182,11 @@ protected:
 	CCallResult<GameClient, RemoteStorageSubscribePublishedFileResult_t> mRemoteStorageSubscribePublishedFileResult;
 	CCallResult<GameClient, RemoteStorageUnsubscribePublishedFileResult_t> mRemoteStorageUnsubscribePublishedFileResult;
 	CCallResult<GameClient, SteamUGCQueryCompleted_t> mSteamUGCQueryCompleted;
+
+	CCallResult<GameClient, RemoteStorageFileReadAsyncComplete_t> mRemoteStorageFileReadAsyncComplete;
+	CCallResult<GameClient, RemoteStorageFileWriteAsyncComplete_t> mRemoteStorageFileWriteAsyncComplete;
+	std::string mRemoteStorageFile = "Savedata";
+	std::vector<uint8> mRemoteStorageBuffer = { 0 };
 
 	PublishedFileId_t mPublishedFileId = 0;
 };

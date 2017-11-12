@@ -559,6 +559,9 @@ GameClient::GameClient()
 
 		//!< UGC(User Generated Content) ‚Ìì¬
 		//CreateUGC();
+
+		//!< RemoteStorage ‚ÌƒNƒGƒŠ
+		QueryRemoteStoage();
 	}
 }
 GameClient::~GameClient()
@@ -1281,9 +1284,93 @@ void GameClient::QueryUGC()
 			AppID, AppID, 1);
 
 		if (k_UGCQueryHandleInvalid != QueryHandle) {
-			auto Handle = SteamUGC()->SendQueryUGCRequest(QueryHandle);
+			auto Handle = UGC->SendQueryUGCRequest(QueryHandle);
 			if (k_uAPICallInvalid != Handle) {
 				mSteamUGCQueryCompleted.Set(Handle, this, &GameClient::OnSteamUGCQueryCompleted);
+			}
+		}
+	}
+}
+
+void GameClient::OnRemoteStorageFileReadAsyncComplete(RemoteStorageFileReadAsyncComplete_t *pCallback, bool bIOFailure)
+{
+	if (!bIOFailure && k_EResultOK == pCallback->m_eResult) {
+		auto RemoteStorage = SteamRemoteStorage();
+		if (nullptr != RemoteStorage) {
+			mRemoteStorageBuffer.resize(pCallback->m_nOffset + pCallback->m_cubRead);
+			RemoteStorage->FileReadAsyncComplete(pCallback->m_hFileReadAsync, mRemoteStorageBuffer.data() + pCallback->m_nOffset, pCallback->m_cubRead);
+			std::cout << "RemoteStorage Read : Size = " << mRemoteStorageBuffer.size() << ", Value = " << static_cast<uint32>(mRemoteStorageBuffer[0]) << std::endl;
+		}
+	}
+}
+void GameClient::OnRemoteStorageFileWriteAsyncComplete(RemoteStorageFileWriteAsyncComplete_t *pCallback, bool bIOFailure)
+{
+	if (!bIOFailure && k_EResultOK == pCallback->m_eResult) {
+		ReadRemmoteStorage();
+	}
+}
+void GameClient::QueryRemoteStoage()
+{
+	uint64 totalBytes, availableBytes;
+	if (SteamRemoteStorage()->GetQuota(&totalBytes, &availableBytes)) {
+		std::cout << "TotalBytes = " << totalBytes << ", AvailableBytes = " << availableBytes << std::endl;
+	}
+
+	std::cout << "IsCloudEnabledForAccount = " << (SteamRemoteStorage()->IsCloudEnabledForAccount() ? "true" : "false") << std::endl;
+	std::cout << "IsCloudEnabledForApp = " << (SteamRemoteStorage()->IsCloudEnabledForApp() ? "true" : "false") << std::endl;
+
+	for (auto i = 0; i < SteamRemoteStorage()->GetFileCount(); ++i) {
+		int32 size;
+		const auto name = SteamRemoteStorage()->GetFileNameAndSize(i, &size);
+		std::cout << "[" << i << "] : " << name << "(Size = " << size << ")" << std::endl;
+	}
+	std::cout << std::endl;
+
+	//ReadRemmoteStorage();
+	//WriteRemoteStorage();
+}
+void GameClient::WriteRemoteStorage()
+{
+	auto RemoteStorage = SteamRemoteStorage();
+	if (nullptr != RemoteStorage) {
+
+		std::random_device rd;
+		const int32 Size = (rd() % 32) + 1;
+		const int32 Value = rd() % 0xff;
+		mRemoteStorageBuffer.assign(Size, Value);
+		std::cout << "RemoteStorage Write : Size = " << Size << ", Value = " << Value << std::endl;
+
+		if (k_unMaxCloudFileChunkSize >= static_cast<uint32>(mRemoteStorageBuffer.size())) {
+			auto Handle = RemoteStorage->FileWriteAsync(mRemoteStorageFile.c_str(), mRemoteStorageBuffer.data(), static_cast<uint32>(mRemoteStorageBuffer.size()));
+			if (k_uAPICallInvalid != Handle) {
+				mRemoteStorageFileWriteAsyncComplete.Set(Handle, this, &GameClient::OnRemoteStorageFileWriteAsyncComplete);
+			}
+		}
+		else {
+			auto Handle = RemoteStorage->FileWriteStreamOpen(mRemoteStorageFile.c_str());
+			if (k_UGCFileStreamHandleInvalid != Handle) {
+				auto ChunkData = reinterpret_cast<uint8*>(mRemoteStorageBuffer.data());
+				auto ChunkSize = static_cast<uint32>(mRemoteStorageBuffer.size());
+				while (ChunkSize > 0) {
+					if (RemoteStorage->FileWriteStreamWriteChunk(Handle, ChunkData, (std::min)(ChunkSize, k_unMaxCloudFileChunkSize))) {
+					}
+					ChunkSize -= k_unMaxCloudFileChunkSize;
+					ChunkData += k_unMaxCloudFileChunkSize;
+				}
+			}
+		}
+	}
+}
+void GameClient::ReadRemmoteStorage()
+{
+	auto RemoteStorage = SteamRemoteStorage();
+	if (nullptr != RemoteStorage) {
+		if (RemoteStorage->FileExists(mRemoteStorageFile.c_str())) {
+			const uint32 Offset = 0;
+			const auto Size = RemoteStorage->GetFileSize(mRemoteStorageFile.c_str());
+			auto Handle = RemoteStorage->FileReadAsync(mRemoteStorageFile.c_str(), Offset, Size);
+			if (k_uAPICallInvalid != Handle) {
+				mRemoteStorageFileReadAsyncComplete.Set(Handle, this, &GameClient::OnRemoteStorageFileReadAsyncComplete);
 			}
 		}
 	}
