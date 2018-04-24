@@ -1005,31 +1005,37 @@ void GameClient::ResetStats()
 	}
 }
 
-void GameClient::OnLeaderboardFindResult(LeaderboardFindResult_t *pFindLearderboardResult, bool bIOFailure)
+void GameClient::OnLeaderboardFindResult(LeaderboardFindResult_t *pCallback, bool bIOFailure)
 {
 	if (!bIOFailure) {
-		if (pFindLearderboardResult->m_bLeaderboardFound) {
+		if (pCallback->m_bLeaderboardFound) {
 			if (SteamUserStats()) {
-				std::cout << SteamUserStats()->GetLeaderboardName(pFindLearderboardResult->m_hSteamLeaderboard) << std::endl;
+				std::cout << SteamUserStats()->GetLeaderboardName(pCallback->m_hSteamLeaderboard) << std::endl;
 
 				//!< リーダボードを覚えておく
-				mSteamLeaderboard = pFindLearderboardResult->m_hSteamLeaderboard;
+				mSteamLeaderboard = pCallback->m_hSteamLeaderboard;
 
 				//!< エントリのダウンロードを開始
+#if 0
 				const auto Handle = SteamUserStats()->DownloadLeaderboardEntries(mSteamLeaderboard, ELeaderboardDataRequest::k_ELeaderboardDataRequestGlobal, 0, 10);
 				mLeaderboardScoresDownloaded.Set(Handle, this, &GameClient::OnLeaderboardScoresDownloaded);
+#else
+				std::vector<CSteamID> SteamIDs = { SteamUser()->GetSteamID(), /*...*/ };
+				const auto Handle = SteamUserStats()->DownloadLeaderboardEntriesForUsers(mSteamLeaderboard, SteamIDs.data(), static_cast<int>(SteamIDs.size()));
+				mLeaderboardScoresDownloaded.Set(Handle, this, &GameClient::OnLeaderboardScoresDownloaded);
+#endif
 			}
 		}
 	}
 }
-void GameClient::OnLeaderboardScoresDownloaded(LeaderboardScoresDownloaded_t *pLeaderboardScoresDownloaded, bool bIOFailure)
+void GameClient::OnLeaderboardScoresDownloaded(LeaderboardScoresDownloaded_t *pCallback, bool bIOFailure)
 {
 	if (!bIOFailure) {
 		if (SteamUserStats()) {
 			std::cout << "Leaderboards" << std::endl;
-			for (auto i = 0; i < pLeaderboardScoresDownloaded->m_cEntryCount; ++i) {
+			for (auto i = 0; i < pCallback->m_cEntryCount; ++i) {
 				LeaderboardEntry_t Entry;
-				if (SteamUserStats()->GetDownloadedLeaderboardEntry(pLeaderboardScoresDownloaded->m_hSteamLeaderboardEntries, i, &Entry, nullptr, 0)) {
+				if (SteamUserStats()->GetDownloadedLeaderboardEntry(pCallback->m_hSteamLeaderboardEntries, i, &Entry, nullptr, 0)) {
 					std::cout << "\t[" << std::setfill('0') << std::setw(2) << Entry.m_nGlobalRank << "] ";
 					std::cout << std::setfill('0') << std::setw(3) << Entry.m_nScore << " ... ";
 					std::cout << SteamFriends()->GetFriendPersonaName(Entry.m_steamIDUser);
@@ -1040,25 +1046,35 @@ void GameClient::OnLeaderboardScoresDownloaded(LeaderboardScoresDownloaded_t *pL
 	}
 }
 
-void GameClient::OnLeaderboardScoreUploaded(LeaderboardScoreUploaded_t *pFindLearderboardResult, bool bIOFailure)
+void GameClient::OnLeaderboardScoreUploaded(LeaderboardScoreUploaded_t *pCallback, bool bIOFailure)
 {
 	if (!bIOFailure) {
-		if (pFindLearderboardResult->m_bSuccess) {
-			if (pFindLearderboardResult->m_bScoreChanged) {
+		if (pCallback->m_bSuccess) {
+			if (pCallback->m_bScoreChanged) {
 				std::cout << "Leaderboard Uploaded" << std::endl;
 
-				std::cout << "\tScore = " << pFindLearderboardResult->m_nScore << ", ";
-				std::cout << "Rank = " << pFindLearderboardResult->m_nGlobalRankPrevious << " -> " << pFindLearderboardResult->m_nGlobalRankNew << std::endl;
+				std::cout << "\tScore = " << pCallback->m_nScore << ", ";
+				std::cout << "Rank = " << pCallback->m_nGlobalRankPrevious << " -> " << pCallback->m_nGlobalRankNew << std::endl;
 
 				//!< #MY_TODO ユーザ生成コンテンツ(リプレイ、ゴースト等)をアタッチしたい場合
-				//UGCHandle_t UGC = k_UGCHandleInvalid;
-				//if (k_UGCHandleInvalid != UGC) {
-				//	const auto Handle = SteamUserStats()->AttachLeaderboardUGC(mSteamLeaderboard, UGC);
-				//}
+				UGCHandle_t UGC = k_UGCHandleInvalid;
+				if (k_UGCHandleInvalid != UGC) {
+					const auto Handle = SteamUserStats()->AttachLeaderboardUGC(mSteamLeaderboard, UGC);
+					mLeaderboardUGCSet.Set(Handle, this, &GameClient::OnLeaderboardUGCSet);
+				}
 			}
 		}
 	}
 }
+
+void GameClient::OnLeaderboardUGCSet(LeaderboardUGCSet_t *pCallback, bool bIOFailure)
+{
+	if (!bIOFailure && k_EResultOK == pCallback->m_eResult) {
+		std::cout << SteamUserStats()->GetLeaderboardName(pCallback->m_hSteamLeaderboard) << std::endl;
+		std::cout << "UGC is attached" << std::endl;
+	}
+}
+
 void GameClient::FindOrCreateLeaderboard()
 {
 	const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodDescending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);

@@ -127,9 +127,10 @@ public:
 	void StoreStats();
 	void ResetStats();
 
-	void OnLeaderboardFindResult(LeaderboardFindResult_t *pFindLearderboardResult, bool bIOFailure);
-	void OnLeaderboardScoresDownloaded(LeaderboardScoresDownloaded_t *pLeaderboardScoresDownloaded, bool bIOFailure);
-	void OnLeaderboardScoreUploaded(LeaderboardScoreUploaded_t *pFindLearderboardResult, bool bIOFailure);
+	void OnLeaderboardFindResult(LeaderboardFindResult_t *pCallback, bool bIOFailure);
+	void OnLeaderboardScoresDownloaded(LeaderboardScoresDownloaded_t *pCallback, bool bIOFailure);
+	void OnLeaderboardScoreUploaded(LeaderboardScoreUploaded_t *pCallback, bool bIOFailure);
+	void OnLeaderboardUGCSet(LeaderboardUGCSet_t *pCallback, bool bIOFailure);
 	void FindOrCreateLeaderboard();
 	void UploadLeaderboard();
 
@@ -176,6 +177,7 @@ protected:
 	CCallResult<GameClient, LeaderboardFindResult_t> mLeaderboardFindResult;
 	CCallResult<GameClient, LeaderboardScoresDownloaded_t> mLeaderboardScoresDownloaded;
 	CCallResult<GameClient, LeaderboardScoreUploaded_t> mLeaderboardScoreUploaded;
+	CCallResult<GameClient, LeaderboardUGCSet_t> mLeaderboardUGCSet;
 
 	CCallResult<GameClient, CreateItemResult_t> mCreateItemResult;
 	CCallResult<GameClient, SubmitItemUpdateResult_t> mSubmitItemUpdateResult;
