@@ -127,12 +127,15 @@ public:
 	void StoreStats();
 	void ResetStats();
 
-	void OnLeaderboardFindResult(LeaderboardFindResult_t *pCallback, bool bIOFailure);
+	void OnLeaderboardFindResultAndUpload(LeaderboardFindResult_t *pCallback, bool bIOFailure);
+	void OnLeaderboardFindResultAndDownload(LeaderboardFindResult_t *pCallback, bool bIOFailure);
 	void OnLeaderboardScoresDownloaded(LeaderboardScoresDownloaded_t *pCallback, bool bIOFailure);
+	void OnRemoteStorageDownloadUGCResult(RemoteStorageDownloadUGCResult_t *pCallback, bool bIOFailure);
 	void OnLeaderboardScoreUploaded(LeaderboardScoreUploaded_t *pCallback, bool bIOFailure);
+	void OnRemoteStorageFileShareResult(RemoteStorageFileShareResult_t *pCallback, bool bIOFailure);
 	void OnLeaderboardUGCSet(LeaderboardUGCSet_t *pCallback, bool bIOFailure);
-	void FindOrCreateLeaderboard();
 	void UploadLeaderboard();
+	void DownloadLeaderboard();
 
 	void OnCreateItemResult(CreateItemResult_t *pCallback, bool bIOFailure);
 	void OnSubmitItemUpdateResult(SubmitItemUpdateResult_t* pCallback, bool bIOFailure);
@@ -176,7 +179,9 @@ protected:
 	SteamLeaderboard_t mSteamLeaderboard;
 	CCallResult<GameClient, LeaderboardFindResult_t> mLeaderboardFindResult;
 	CCallResult<GameClient, LeaderboardScoresDownloaded_t> mLeaderboardScoresDownloaded;
+	CCallResult<GameClient, RemoteStorageDownloadUGCResult_t> mRemoteStorageDownloadUGCResult;
 	CCallResult<GameClient, LeaderboardScoreUploaded_t> mLeaderboardScoreUploaded;
+	CCallResult<GameClient, RemoteStorageFileShareResult_t> mRemoteStorageFileShareResult;
 	CCallResult<GameClient, LeaderboardUGCSet_t> mLeaderboardUGCSet;
 
 	CCallResult<GameClient, CreateItemResult_t> mCreateItemResult;

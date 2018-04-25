@@ -551,8 +551,9 @@ GameClient::GameClient()
 			std::cout << "RequestCurrentStats() failed" << std::endl;
 		}
 
-		//!< リーダボードの検索 or 作成リクエスト
-		FindOrCreateLeaderboard();
+		//!< リーダボード
+		UploadLeaderboard();
+		//DownloadLeaderboard();
 		
 		//!< UGC(User Generated Content)  のクエリ
 		QueryUGC();
@@ -1005,29 +1006,50 @@ void GameClient::ResetStats()
 	}
 }
 
-void GameClient::OnLeaderboardFindResult(LeaderboardFindResult_t *pCallback, bool bIOFailure)
+void GameClient::OnLeaderboardFindResultAndUpload(LeaderboardFindResult_t *pCallback, bool bIOFailure)
 {
-	if (!bIOFailure) {
-		if (pCallback->m_bLeaderboardFound) {
-			if (SteamUserStats()) {
-				std::cout << SteamUserStats()->GetLeaderboardName(pCallback->m_hSteamLeaderboard) << std::endl;
+	if (!bIOFailure && pCallback->m_bLeaderboardFound) {
+		if (SteamUserStats()) {
+			std::cout << SteamUserStats()->GetLeaderboardName(pCallback->m_hSteamLeaderboard) << std::endl;
 
-				//!< リーダボードを覚えておく
-				mSteamLeaderboard = pCallback->m_hSteamLeaderboard;
+			//!< リーダボードを覚えておく
+			mSteamLeaderboard = pCallback->m_hSteamLeaderboard;
 
-				//!< エントリのダウンロードを開始
-#if 0
-				const auto Handle = SteamUserStats()->DownloadLeaderboardEntries(mSteamLeaderboard, ELeaderboardDataRequest::k_ELeaderboardDataRequestGlobal, 0, 10);
-				mLeaderboardScoresDownloaded.Set(Handle, this, &GameClient::OnLeaderboardScoresDownloaded);
-#else
-				std::vector<CSteamID> SteamIDs = { SteamUser()->GetSteamID(), /*...*/ };
-				const auto Handle = SteamUserStats()->DownloadLeaderboardEntriesForUsers(mSteamLeaderboard, SteamIDs.data(), static_cast<int>(SteamIDs.size()));
-				mLeaderboardScoresDownloaded.Set(Handle, this, &GameClient::OnLeaderboardScoresDownloaded);
-#endif
+			//!< アップロード開始
+			std::random_device rd;
+			const int32 Score = rd() % 101;
+			const auto Handle = SteamUserStats()->UploadLeaderboardScore(mSteamLeaderboard, k_ELeaderboardUploadScoreMethodKeepBest, Score, nullptr, 0);
+			if (k_uAPICallInvalid != Handle) {
+				mLeaderboardScoreUploaded.Set(Handle, this, &GameClient::OnLeaderboardScoreUploaded);
 			}
 		}
 	}
 }
+
+void GameClient::OnLeaderboardFindResultAndDownload(LeaderboardFindResult_t *pCallback, bool bIOFailure)
+{
+	if (!bIOFailure && pCallback->m_bLeaderboardFound) {
+		if (SteamUserStats()) {
+			std::cout << SteamUserStats()->GetLeaderboardName(pCallback->m_hSteamLeaderboard) << std::endl;
+
+			//!< リーダボードを覚えておく
+			mSteamLeaderboard = pCallback->m_hSteamLeaderboard;
+
+#if 0
+			//!< 指定範囲(順位)のリーダーボードを取得
+			const auto Handle = SteamUserStats()->DownloadLeaderboardEntries(mSteamLeaderboard, ELeaderboardDataRequest::k_ELeaderboardDataRequestGlobal, 0, 10);
+#else
+			//!< 自身のリーダーボードを取得
+			std::vector<CSteamID> SteamIDs = { SteamUser()->GetSteamID(), /*...*/ };
+			const auto Handle = SteamUserStats()->DownloadLeaderboardEntriesForUsers(mSteamLeaderboard, SteamIDs.data(), static_cast<int>(SteamIDs.size()));
+#endif
+			if (k_uAPICallInvalid != Handle) {
+				mLeaderboardScoresDownloaded.Set(Handle, this, &GameClient::OnLeaderboardScoresDownloaded);
+			}
+		}
+	}
+}
+
 void GameClient::OnLeaderboardScoresDownloaded(LeaderboardScoresDownloaded_t *pCallback, bool bIOFailure)
 {
 	if (!bIOFailure) {
@@ -1040,28 +1062,83 @@ void GameClient::OnLeaderboardScoresDownloaded(LeaderboardScoresDownloaded_t *pC
 					std::cout << std::setfill('0') << std::setw(3) << Entry.m_nScore << " ... ";
 					std::cout << SteamFriends()->GetFriendPersonaName(Entry.m_steamIDUser);
 					std::cout << std::endl;
+
+					//!< UGCがアタッチされている場合はさらにUGCの取得もする
+					if (k_UGCHandleInvalid != Entry.m_hUGC) {
+						if (SteamRemoteStorage()) {
+							const auto Handle = SteamRemoteStorage()->UGCDownload(Entry.m_hUGC, 0);
+							if (k_uAPICallInvalid != Handle) {
+								mRemoteStorageDownloadUGCResult.Set(Handle, this, &GameClient::OnRemoteStorageDownloadUGCResult);
+							}
+						}
+					}
+					else {
+						//!< リーダーボードのダウンロードが完了
+						std::cout << "Leaderboard Download Completed" << std::endl;
+					}
 				}
 			}
 		}
 	}
 }
 
+void GameClient::OnRemoteStorageDownloadUGCResult(RemoteStorageDownloadUGCResult_t *pCallback, bool bIOFailure)
+{
+	if (!bIOFailure && k_EResultOK == pCallback->m_eResult) {
+		std::cout << "UGC downloaded" << std::endl;
+		if (SteamFriends()) {
+			pCallback->m_nAppID;
+			std::cout << "\tOwner = " << SteamFriends()->GetFriendPersonaName(CSteamID(pCallback->m_ulSteamIDOwner)) << std::endl;
+			std::cout << "\tFileName = " << pCallback->m_pchFileName << " (" << pCallback->m_nSizeInBytes << " bytes)" << std::endl;
+
+			auto* Buffer = new uint8[pCallback->m_nSizeInBytes];
+			SteamRemoteStorage()->UGCRead(pCallback->m_hFile, Buffer, pCallback->m_nSizeInBytes, 0, EUGCReadAction::k_EUGCRead_Close);
+
+			//!< uint32 0xdeadbeef が書き込まれているはず
+			uint32 data = *reinterpret_cast<uint32*>(Buffer);
+			
+			delete[] Buffer;
+
+			//!< リーダーボードのダウンロードが完了
+			std::cout << "Leaderboard Download Completed" << std::endl;
+		}
+	}
+}
+
 void GameClient::OnLeaderboardScoreUploaded(LeaderboardScoreUploaded_t *pCallback, bool bIOFailure)
 {
-	if (!bIOFailure) {
-		if (pCallback->m_bSuccess) {
-			if (pCallback->m_bScoreChanged) {
-				std::cout << "Leaderboard Uploaded" << std::endl;
+	//!< ベストスコアを更新した時のみ m_bScoreChanged は true になるので、ここでは見ない
+	if (!bIOFailure && pCallback->m_bSuccess /*&& pCallback->m_bScoreChanged*/) {
+		std::cout << "Leaderboard Uploaded" << std::endl;
 
-				std::cout << "\tScore = " << pCallback->m_nScore << ", ";
-				std::cout << "Rank = " << pCallback->m_nGlobalRankPrevious << " -> " << pCallback->m_nGlobalRankNew << std::endl;
+		std::cout << "\tScore = " << pCallback->m_nScore << ", ";
+		std::cout << "Rank = " << pCallback->m_nGlobalRankPrevious << " -> " << pCallback->m_nGlobalRankNew << std::endl;
 
-				//!< #MY_TODO ユーザ生成コンテンツ(リプレイ、ゴースト等)をアタッチしたい場合
-				UGCHandle_t UGC = k_UGCHandleInvalid;
-				if (k_UGCHandleInvalid != UGC) {
-					const auto Handle = SteamUserStats()->AttachLeaderboardUGC(mSteamLeaderboard, UGC);
-					mLeaderboardUGCSet.Set(Handle, this, &GameClient::OnLeaderboardUGCSet);
+		if (SteamUserStats() && SteamRemoteStorage()) {
+			const auto FileName = "UGCFile";
+
+			//!< とりあえず uint32 0xdeadbeef を書き込む
+			uint32 data = 0xdeadbeef;
+			if (SteamRemoteStorage()->FileWrite(FileName, &data, sizeof(data))) {
+				const auto Handle = SteamRemoteStorage()->FileShare(FileName);
+				if (k_uAPICallInvalid != Handle) {
+					mRemoteStorageFileShareResult.Set(Handle, this, &GameClient::OnRemoteStorageFileShareResult);
 				}
+			}
+		}
+	}
+}
+
+void GameClient::OnRemoteStorageFileShareResult(RemoteStorageFileShareResult_t *pCallback, bool bIOFailure)
+{
+	if (!bIOFailure && k_EResultOK == pCallback->m_eResult) {
+		std::cout << "File Shared" << std::endl;
+		std::cout << "\t" << pCallback->m_rgchFilename << std::endl;
+
+		if (k_UGCHandleInvalid != pCallback->m_hFile) {
+			const auto Handle = SteamUserStats()->AttachLeaderboardUGC(mSteamLeaderboard, pCallback->m_hFile);
+			if (k_uAPICallInvalid != Handle) {
+				mLeaderboardUGCSet.Set(Handle, this, &GameClient::OnLeaderboardUGCSet);
 			}
 		}
 	}
@@ -1070,24 +1147,31 @@ void GameClient::OnLeaderboardScoreUploaded(LeaderboardScoreUploaded_t *pCallbac
 void GameClient::OnLeaderboardUGCSet(LeaderboardUGCSet_t *pCallback, bool bIOFailure)
 {
 	if (!bIOFailure && k_EResultOK == pCallback->m_eResult) {
-		std::cout << SteamUserStats()->GetLeaderboardName(pCallback->m_hSteamLeaderboard) << std::endl;
-		std::cout << "UGC is attached" << std::endl;
+		std::cout << "UGC Attached" << std::endl;
+
+		//!< リーダーボードのアップロードが完了
+		std::cout << "Leaderboard Upload Completed" << std::endl;
+		
+		//!< とりあえずダウンロードを開始してみる
+		DownloadLeaderboard();
 	}
 }
 
-void GameClient::FindOrCreateLeaderboard()
+void GameClient::UploadLeaderboard()
 {
 	const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodDescending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
 	//const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodAscending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
-	mLeaderboardFindResult.Set(Handle, this, &GameClient::OnLeaderboardFindResult);
+	if (k_uAPICallInvalid != Handle) {
+		mLeaderboardFindResult.Set(Handle, this, &GameClient::OnLeaderboardFindResultAndUpload);
+	}
 }
-void GameClient::UploadLeaderboard()
+void GameClient::DownloadLeaderboard()
 {
-	//!< リーダボードのアップロード
-	std::random_device rd;
-	const int32 Score = rd() % 101;
-	const auto Handle = SteamUserStats()->UploadLeaderboardScore(mSteamLeaderboard, k_ELeaderboardUploadScoreMethodKeepBest, Score, nullptr, 0);
-	mLeaderboardScoreUploaded.Set(Handle, this, &GameClient::OnLeaderboardScoreUploaded);
+	const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodDescending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
+	//const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodAscending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
+	if (k_uAPICallInvalid != Handle) {
+		mLeaderboardFindResult.Set(Handle, this, &GameClient::OnLeaderboardFindResultAndDownload);
+	}
 }
 
 void GameClient::OnCreateItemResult(CreateItemResult_t *pCallback, bool bIOFailure)
@@ -1357,7 +1441,7 @@ void GameClient::WriteRemoteStorage()
 		std::cout << "RemoteStorage Write : Size = " << Size << ", Value = " << Value << std::endl;
 
 		if (k_unMaxCloudFileChunkSize >= static_cast<uint32>(mRemoteStorageBuffer.size())) {
-			auto Handle = RemoteStorage->FileWriteAsync(mRemoteStorageFile.c_str(), mRemoteStorageBuffer.data(), static_cast<uint32>(mRemoteStorageBuffer.size()));
+			const auto Handle = RemoteStorage->FileWriteAsync(mRemoteStorageFile.c_str(), mRemoteStorageBuffer.data(), static_cast<uint32>(mRemoteStorageBuffer.size()));
 			if (k_uAPICallInvalid != Handle) {
 				mRemoteStorageFileWriteAsyncComplete.Set(Handle, this, &GameClient::OnRemoteStorageFileWriteAsyncComplete);
 			}
