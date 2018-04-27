@@ -1018,7 +1018,10 @@ void GameClient::OnLeaderboardFindResultAndUpload(LeaderboardFindResult_t *pCall
 			//!< アップロード開始
 			std::random_device rd;
 			const int32 Score = rd() % 101;
-			const auto Handle = SteamUserStats()->UploadLeaderboardScore(mSteamLeaderboard, k_ELeaderboardUploadScoreMethodKeepBest, Score, nullptr, 0);
+			//!< アップロード時に details を指定すると、ダウンロード時に取得できる (int32 * k_cLeaderboardDetailsMax(=64))
+			//!< UGCにするほどでもないデータを付けたい場合
+			const std::vector<int32> details = { 0, 1, 2, 3 };
+			const auto Handle = SteamUserStats()->UploadLeaderboardScore(mSteamLeaderboard, k_ELeaderboardUploadScoreMethodKeepBest, Score, details.data(), static_cast<int>(details.size()));
 			if (k_uAPICallInvalid != Handle) {
 				mLeaderboardScoreUploaded.Set(Handle, this, &GameClient::OnLeaderboardScoreUploaded);
 			}
@@ -1057,10 +1060,21 @@ void GameClient::OnLeaderboardScoresDownloaded(LeaderboardScoresDownloaded_t *pC
 			std::cout << "Leaderboards" << std::endl;
 			for (auto i = 0; i < pCallback->m_cEntryCount; ++i) {
 				LeaderboardEntry_t Entry;
-				if (SteamUserStats()->GetDownloadedLeaderboardEntry(pCallback->m_hSteamLeaderboardEntries, i, &Entry, nullptr, 0)) {
+				std::vector<int32> details(k_cLeaderboardDetailsMax);
+				if (SteamUserStats()->GetDownloadedLeaderboardEntry(pCallback->m_hSteamLeaderboardEntries, i, &Entry, details.data(), static_cast<int>(details.size()))) {
 					std::cout << "\t[" << std::setfill('0') << std::setw(2) << Entry.m_nGlobalRank << "] ";
 					std::cout << std::setfill('0') << std::setw(3) << Entry.m_nScore << " ... ";
 					std::cout << SteamFriends()->GetFriendPersonaName(Entry.m_steamIDUser);
+					//!< アップロード時に details を指定している場合
+					if (Entry.m_cDetails) {
+						std::cout << std::endl;
+						std::cout << "Details : ";
+						details.resize(Entry.m_cDetails);
+						details.shrink_to_fit();
+						for (auto j : details) {
+							std::cout << j << ", ";
+						}
+					}
 					std::cout << std::endl;
 
 					//!< UGCがアタッチされている場合はさらにUGCの取得もする
