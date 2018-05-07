@@ -555,6 +555,9 @@ GameClient::GameClient()
 		UploadLeaderboard();
 		//DownloadLeaderboard();
 		
+		//!< DLC
+		QueryDLC();
+
 		//!< UGC(User Generated Content)  ‚ÌƒNƒGƒŠ
 		QueryUGC();
 
@@ -1185,6 +1188,36 @@ void GameClient::DownloadLeaderboard()
 	//const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodAscending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
 	if (k_uAPICallInvalid != Handle) {
 		mLeaderboardFindResult.Set(Handle, this, &GameClient::OnLeaderboardFindResultAndDownload);
+	}
+}
+
+void GameClient::OnDlcInstalled(DlcInstalled_t* pCallback)
+{
+	std::cout << "DLC " << pCallback->m_nAppID << " is installed" << std::endl;
+}
+void GameClient::QueryDLC()
+{
+	std::cout << "DLC" << std::endl;
+	if (SteamApps()) {
+		for (auto i = 0; i < SteamApps()->GetDLCCount(); ++i) {
+			AppId_t AppID;
+			bool bAvailable;
+			char Name[128];
+			if (SteamApps()->BGetDLCDataByIndex(i, &AppID, &bAvailable, Name, sizeof(Name))) {
+				std::cout << "\t" << Name << "(" << AppID << "), Available = " << (bAvailable ? "true" : "false") << std::endl;
+				if (SteamApps()->BIsSubscribedApp(AppID)) {
+					if (SteamApps()->BIsDlcInstalled(AppID)) {
+						SteamApps()->UninstallDLC(AppID);
+					}
+					else {
+						SteamApps()->InstallDLC(AppID);
+						uint64 Downloaded, Total;
+						if (SteamApps()->GetDlcDownloadProgress(AppID, &Downloaded, &Total)) {
+						}
+					}
+				}
+			}
+		}
 	}
 }
 

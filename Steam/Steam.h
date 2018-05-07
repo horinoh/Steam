@@ -137,6 +137,9 @@ public:
 	void UploadLeaderboard();
 	void DownloadLeaderboard();
 
+	STEAM_CALLBACK(GameClient, OnDlcInstalled, DlcInstalled_t);
+	void QueryDLC();
+
 	void OnCreateItemResult(CreateItemResult_t *pCallback, bool bIOFailure);
 	void OnSubmitItemUpdateResult(SubmitItemUpdateResult_t* pCallback, bool bIOFailure);
 	void OnRemoteStorageSubscribePublishedFileResult(RemoteStorageSubscribePublishedFileResult_t *pCallback, bool bIOFailure);
