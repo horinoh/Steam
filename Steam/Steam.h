@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <string>
 #include <vector>
+#include <array>
 #include <random>
 #include <algorithm>
 
@@ -163,6 +164,28 @@ public:
 	void ReadRemmoteStorage();
 
 	CSteamID GetEnteredLobbySteamID() const { return mEnteredLobbySteamID; }
+
+	void GetFriendInformation();
+	void OnImageLoad(const int ImageHandle);
+	STEAM_CALLBACK(GameClient, OnPersonaStateChange, PersonaStateChange_t);
+	STEAM_CALLBACK(GameClient, OnGameOverlayActivated, GameOverlayActivated_t);
+	STEAM_CALLBACK(GameClient, OnAvatarImageLoaded, AvatarImageLoaded_t);
+
+	//GameServerChangeRequested_t;
+	//GameLobbyJoinRequested_t;
+	//ClanOfficerListResponse_t;
+	//FriendRichPresenceUpdate_t;
+	//GameRichPresenceJoinRequested_t;
+	//GameConnectedClanChatMsg_t;
+	//GameConnectedChatJoin_t;
+	//GameConnectedChatLeave_t;
+	//DownloadClanActivityCountsResult_t;
+	//JoinClanChatRoomCompletionResult_t;
+	//GameConnectedFriendChatMsg_t;
+	//FriendsGetFollowerCount_t;
+	//FriendsIsFollowing_t;
+	//FriendsEnumerateFollowingList_t;
+	//SetPersonaNameResponse_t;
 
 protected:
 	CCallResult<GameClient, LobbyCreated_t> mOnLobbyCreated;

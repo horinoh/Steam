@@ -566,6 +566,9 @@ GameClient::GameClient()
 
 		//!< RemoteStorage のクエリ
 		QueryRemoteStoage();
+
+		//!< フレンド情報の取得
+		GetFriendInformation();
 	}
 }
 GameClient::~GameClient()
@@ -1523,4 +1526,118 @@ void GameClient::ReadRemmoteStorage()
 	}
 }
 
+void GameClient::GetFriendInformation()
+{
+	if (SteamFriends()) {
+		std::cout << "All Friends" << std::endl;
+		auto bRequestUserInformation = false;
+		for (auto i = 0; i < SteamFriends()->GetFriendCount(k_EFriendFlagAll); ++i) {
+			const auto SteamID = SteamFriends()->GetFriendByIndex(i, k_EFriendFlagAll);
+			std::cout << "\t" << SteamFriends()->GetFriendPersonaName(SteamID) << std::endl;
+
+			switch (SteamFriends()->GetFriendRelationship(SteamID)) {
+			case k_EFriendRelationshipNone:
+			case k_EFriendRelationshipFriend:
+			case k_EFriendRelationshipIgnored:
+			case k_EFriendRelationshipIgnoredFriend:
+				break;
+			}
+
+			//!< とりあえず最初の一人分だけユーザ情報(とアバター)をリクエストする
+			if (false == bRequestUserInformation) {
+				const auto bNameOnly = false; //!< アバターもロードする
+				if (SteamFriends()->RequestUserInformation(SteamID, bNameOnly)) {
+					//!< PersonaStateChanged_t がコールバックされる
+					bRequestUserInformation = true;
+				}
+				else {
+					//!< ユーザ情報を既に取得できている
+				}
+			}
+		}
+
+		std::cout << "Blocking" << std::endl;
+		for (auto i = 0; i < SteamFriends()->GetFriendCount(k_EFriendFlagIgnored); ++i) {
+			const auto SteamID = SteamFriends()->GetFriendByIndex(i, k_EFriendFlagIgnored);
+			std::cout << "\t" << SteamFriends()->GetFriendPersonaName(SteamID) << std::endl;
+		}
+		
+		std::cout << "BlockingFriends" << std::endl;
+		for (auto i = 0; i < SteamFriends()->GetFriendCount(k_EFriendFlagIgnoredFriend); ++i) {
+			const auto SteamID = SteamFriends()->GetFriendByIndex(i, k_EFriendFlagIgnoredFriend);
+			std::cout << "\t" << SteamFriends()->GetFriendPersonaName(SteamID) << std::endl;
+		}
+	}
+}
+
+void GameClient::OnImageLoad(const int ImageHandle)
+{
+	uint32 Width, Height;
+	if (SteamUtils()->GetImageSize(ImageHandle, &Width, &Height)) {
+		std::vector<uint8> Image(4 * Height * Width);
+		if (SteamUtils()->GetImageRGBA(ImageHandle, Image.data(), static_cast<int>(Image.size()))) {
+			//!< 画像がロードされた
+		}
+	}
+}
+
+void GameClient::OnPersonaStateChange(PersonaStateChange_t* pCallback)
+{
+	const auto SteamID = CSteamID(pCallback->m_ulSteamID);
+
+	if (k_EPersonaChangeName & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeStatus & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeComeOnline & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeGoneOffline & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeGamePlayed & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeGameServer & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeAvatar & pCallback->m_nChangeFlags) {
+		//!< 小アバターの取得
+		auto ImageHandle = SteamFriends()->GetSmallFriendAvatar(SteamID);
+		if (ImageHandle) {
+			OnImageLoad(ImageHandle);
+		}
+
+		//!< 中アバターの取得
+		ImageHandle = SteamFriends()->GetMediumFriendAvatar(SteamID);
+		if (ImageHandle) {
+			OnImageLoad(ImageHandle);
+		}
+
+		//!< 大アバターの取得(リクエスト)
+		ImageHandle = SteamFriends()->GetLargeFriendAvatar(SteamID);
+		if (-1 == ImageHandle) {
+			//!< -1 の場合はリクエストした、AvatarImageLoaded_t でコールバックされる
+		}
+		else if (ImageHandle) {
+			OnImageLoad(ImageHandle);
+		}
+	}
+	if (k_EPersonaChangeJoinedSource & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeLeftSource & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeRelationshipChanged & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeNameFirstSet & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeFacebookInfo & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeNickname & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeSteamLevel & pCallback->m_nChangeFlags) {}
+}
+
+void GameClient::OnGameOverlayActivated(GameOverlayActivated_t* pCallback)
+{
+	//!< DirectX 等で描画されていないとオーバーレイは表示されない
+	if (pCallback->m_bActive) {}
+}
+
+void GameClient::OnAvatarImageLoaded(AvatarImageLoaded_t* pCallback)
+{
+	if (pCallback->m_iImage) {
+#if 1
+		OnImageLoad(pCallback->m_iImage);
+#else
+		std::vector<uint8> Image(4 * pCallback->m_iTall * pCallback->m_iWide);
+		if (SteamUtils()->GetImageRGBA(pCallback->m_iImage, Image.data(), static_cast<int>(Image.size()))) {
+		}
+#endif
+	}
+}
 #pragma endregion
