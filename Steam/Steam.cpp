@@ -1529,43 +1529,73 @@ void GameClient::ReadRemmoteStorage()
 void GameClient::GetFriendInformation()
 {
 	if (SteamFriends()) {
+		for (auto i = 0; i < SteamFriends()->GetFriendCount(k_EFriendFlagAll); ++i) {
+			const auto SteamID = SteamFriends()->GetFriendByIndex(i, k_EFriendFlagAll);
+
+			const auto bNameOnly = false; //!< アバターもロードする
+			if (SteamFriends()->RequestUserInformation(SteamID, bNameOnly)) {
+				//!< PersonaStateChanged_t がコールバックされる
+
+				//!< とりあえず最初の一人だけユーザ情報(とアバター)をリクエストして break
+				std::cout << "\t" << "Requesting " << SteamFriends()->GetFriendPersonaName(SteamID) << "'s user information" << std::endl;
+				break;
+			}
+			else {
+				//!< ユーザ情報を既に取得できている
+			}
+		}
+	}
+
+	PrintFriendRelationship();
+}
+
+void GameClient::PrintFriendRelationship()
+{
+	if (SteamFriends()) {
 		std::cout << "All Friends" << std::endl;
 		auto bRequestUserInformation = false;
 		for (auto i = 0; i < SteamFriends()->GetFriendCount(k_EFriendFlagAll); ++i) {
 			const auto SteamID = SteamFriends()->GetFriendByIndex(i, k_EFriendFlagAll);
-			std::cout << "\t" << SteamFriends()->GetFriendPersonaName(SteamID) << std::endl;
+			if (SteamID.IsValid()) {
+				std::cout << "\t" << SteamFriends()->GetFriendPersonaName(SteamID) << std::endl;
 
-			switch (SteamFriends()->GetFriendRelationship(SteamID)) {
-			case k_EFriendRelationshipNone:
-			case k_EFriendRelationshipFriend:
-			case k_EFriendRelationshipIgnored:
-			case k_EFriendRelationshipIgnoredFriend:
-				break;
-			}
-
-			//!< とりあえず最初の一人分だけユーザ情報(とアバター)をリクエストする
-			if (false == bRequestUserInformation) {
-				const auto bNameOnly = false; //!< アバターもロードする
-				if (SteamFriends()->RequestUserInformation(SteamID, bNameOnly)) {
-					//!< PersonaStateChanged_t がコールバックされる
-					bRequestUserInformation = true;
-				}
-				else {
-					//!< ユーザ情報を既に取得できている
+				switch (SteamFriends()->GetFriendRelationship(SteamID)) {
+				case k_EFriendRelationshipNone:
+				case k_EFriendRelationshipFriend:
+				case k_EFriendRelationshipIgnored:
+				case k_EFriendRelationshipIgnoredFriend:
+					break;
 				}
 			}
 		}
 
-		std::cout << "Blocking" << std::endl;
+		std::cout << "Ignore" << std::endl;
 		for (auto i = 0; i < SteamFriends()->GetFriendCount(k_EFriendFlagIgnored); ++i) {
 			const auto SteamID = SteamFriends()->GetFriendByIndex(i, k_EFriendFlagIgnored);
-			std::cout << "\t" << SteamFriends()->GetFriendPersonaName(SteamID) << std::endl;
+			if (SteamID.IsValid()) {
+				std::cout << "\t" << SteamFriends()->GetFriendPersonaName(SteamID) << std::endl;
+			}
 		}
-		
-		std::cout << "BlockingFriends" << std::endl;
+
+		std::cout << "IgnoreFriends" << std::endl;
 		for (auto i = 0; i < SteamFriends()->GetFriendCount(k_EFriendFlagIgnoredFriend); ++i) {
 			const auto SteamID = SteamFriends()->GetFriendByIndex(i, k_EFriendFlagIgnoredFriend);
-			std::cout << "\t" << SteamFriends()->GetFriendPersonaName(SteamID) << std::endl;
+			if (SteamID.IsValid()) {
+				std::cout << "\t" << SteamFriends()->GetFriendPersonaName(SteamID) << std::endl;
+			}
+		}
+
+		std::cout << "Coplay" << std::endl;
+		for (auto i = 0; i < SteamFriends()->GetCoplayFriendCount(); ++i) {
+			const auto SteamID = SteamFriends()->GetCoplayFriend(i);
+			if (SteamID.IsValid() && SteamID != SteamUser()->GetSteamID()) {
+				const auto UnixTime = static_cast<time_t>(SteamFriends()->GetFriendCoplayTime(SteamID));
+				const auto LocalTime = localtime(&UnixTime);
+				const auto GreenwichTime = gmtime(&UnixTime);
+				std::cout << "\t" << asctime(LocalTime);
+				std::cout << "\t" << "GameID = " << SteamFriends()->GetFriendCoplayGame(SteamID) << std::endl;
+				std::cout << "\t" << SteamFriends()->GetFriendPersonaName(SteamID) << std::endl;
+			}
 		}
 	}
 }
@@ -1577,49 +1607,82 @@ void GameClient::OnImageLoad(const int ImageHandle)
 		std::vector<uint8> Image(4 * Height * Width);
 		if (SteamUtils()->GetImageRGBA(ImageHandle, Image.data(), static_cast<int>(Image.size()))) {
 			//!< 画像がロードされた
+			std::cout << "\t" << "\t" << "Image(RGBA) loaded " << Width << " x " << Height << std::endl;
 		}
 	}
 }
 
 void GameClient::OnPersonaStateChange(PersonaStateChange_t* pCallback)
 {
+	std::cout << "On personal state change" << std::endl;
+
 	const auto SteamID = CSteamID(pCallback->m_ulSteamID);
 
-	if (k_EPersonaChangeName & pCallback->m_nChangeFlags) {}
-	if (k_EPersonaChangeStatus & pCallback->m_nChangeFlags) {}
-	if (k_EPersonaChangeComeOnline & pCallback->m_nChangeFlags) {}
-	if (k_EPersonaChangeGoneOffline & pCallback->m_nChangeFlags) {}
-	if (k_EPersonaChangeGamePlayed & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeName & pCallback->m_nChangeFlags) {
+		std::cout << "\t" << "Name" << std::endl;
+		SteamFriends()->GetClanName(SteamID);
+	}
+	if (k_EPersonaChangeStatus & pCallback->m_nChangeFlags) {
+		std::cout << "\t" << "Status" << std::endl;
+	}
+	if (k_EPersonaChangeComeOnline & pCallback->m_nChangeFlags) {
+		std::cout << "\t" << "ComeOnline" << std::endl;
+	}
+	if (k_EPersonaChangeGoneOffline & pCallback->m_nChangeFlags) {
+		std::cout << "\t" << "GoneOffline" << std::endl;
+	}
+	if (k_EPersonaChangeGamePlayed & pCallback->m_nChangeFlags) {
+		std::cout << "\t" << "GamePlayed" << std::endl;
+		if (SteamFriends()) {
+			FriendGameInfo_t FriendGameInfo;
+			if (SteamFriends()->GetFriendGamePlayed(SteamID, &FriendGameInfo)) {
+				std::cout << "\t" << "\t" << "GameID = " << FriendGameInfo.m_gameID.ToUint64() << std::endl;
+			}
+		}
+	}
 	if (k_EPersonaChangeGameServer & pCallback->m_nChangeFlags) {}
 	if (k_EPersonaChangeAvatar & pCallback->m_nChangeFlags) {
-		//!< 小アバターの取得
-		auto ImageHandle = SteamFriends()->GetSmallFriendAvatar(SteamID);
-		if (ImageHandle) {
-			OnImageLoad(ImageHandle);
-		}
+		std::cout << "\t" << "Avatar" << std::endl;
+		if (SteamFriends()) {
+			//!< 小アバターの取得
+			auto ImageHandle = SteamFriends()->GetSmallFriendAvatar(SteamID);
+			if (ImageHandle) {
+				OnImageLoad(ImageHandle);
+			}
 
-		//!< 中アバターの取得
-		ImageHandle = SteamFriends()->GetMediumFriendAvatar(SteamID);
-		if (ImageHandle) {
-			OnImageLoad(ImageHandle);
-		}
+			//!< 中アバターの取得
+			ImageHandle = SteamFriends()->GetMediumFriendAvatar(SteamID);
+			if (ImageHandle) {
+				OnImageLoad(ImageHandle);
+			}
 
-		//!< 大アバターの取得(リクエスト)
-		ImageHandle = SteamFriends()->GetLargeFriendAvatar(SteamID);
-		if (-1 == ImageHandle) {
-			//!< -1 の場合はリクエストした、AvatarImageLoaded_t でコールバックされる
-		}
-		else if (ImageHandle) {
-			OnImageLoad(ImageHandle);
+			//!< 大アバターの取得(リクエスト)
+			ImageHandle = SteamFriends()->GetLargeFriendAvatar(SteamID);
+			if (-1 == ImageHandle) {
+				//!< -1 の場合はリクエストした、AvatarImageLoaded_t でコールバックされる
+				std::cout << "\t" << "\t" << "Requesting large avatar" << std::endl;
+			}
+			else if (ImageHandle) {
+				OnImageLoad(ImageHandle);
+			}
 		}
 	}
 	if (k_EPersonaChangeJoinedSource & pCallback->m_nChangeFlags) {}
 	if (k_EPersonaChangeLeftSource & pCallback->m_nChangeFlags) {}
-	if (k_EPersonaChangeRelationshipChanged & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeRelationshipChanged & pCallback->m_nChangeFlags) {
+		std::cout << "\t" << "RelationshipChanged" << std::endl;
+		PrintFriendRelationship();
+	}
 	if (k_EPersonaChangeNameFirstSet & pCallback->m_nChangeFlags) {}
 	if (k_EPersonaChangeFacebookInfo & pCallback->m_nChangeFlags) {}
-	if (k_EPersonaChangeNickname & pCallback->m_nChangeFlags) {}
-	if (k_EPersonaChangeSteamLevel & pCallback->m_nChangeFlags) {}
+	if (k_EPersonaChangeNickname & pCallback->m_nChangeFlags) {
+		std::cout << "\t" << "Nickname" << std::endl;
+		SteamFriends()->GetPlayerNickname(SteamID);
+	}
+	if (k_EPersonaChangeSteamLevel & pCallback->m_nChangeFlags) {
+		std::cout << "\t" << "SteamLevel" << std::endl;
+		SteamFriends()->GetFriendSteamLevel(SteamID);
+	}
 }
 
 void GameClient::OnGameOverlayActivated(GameOverlayActivated_t* pCallback)
@@ -1631,6 +1694,7 @@ void GameClient::OnGameOverlayActivated(GameOverlayActivated_t* pCallback)
 void GameClient::OnAvatarImageLoaded(AvatarImageLoaded_t* pCallback)
 {
 	if (pCallback->m_iImage) {
+		std::cout << "\t" << "Avatar image loaded" << std::endl;
 #if 1
 		OnImageLoad(pCallback->m_iImage);
 #else

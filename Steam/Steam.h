@@ -6,7 +6,6 @@
 #include <iomanip>
 #include <string>
 #include <vector>
-#include <array>
 #include <random>
 #include <algorithm>
 
@@ -166,6 +165,7 @@ public:
 	CSteamID GetEnteredLobbySteamID() const { return mEnteredLobbySteamID; }
 
 	void GetFriendInformation();
+	void PrintFriendRelationship();
 	void OnImageLoad(const int ImageHandle);
 	STEAM_CALLBACK(GameClient, OnPersonaStateChange, PersonaStateChange_t);
 	STEAM_CALLBACK(GameClient, OnGameOverlayActivated, GameOverlayActivated_t);
