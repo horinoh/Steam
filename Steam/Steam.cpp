@@ -240,6 +240,21 @@ Steam::Steam()
 				}
 			}
 
+			if (SteamApps()) {
+				const uint32 SpaceWarAppID = 480;
+				if (SteamApps()->BIsAppInstalled(SpaceWarAppID)) {
+					std::array<char, 256> Folder;
+					if (SteamApps()->GetAppInstallDir(SpaceWarAppID, Folder.data(), static_cast<uint32>(Folder.size()))) {
+						std::cout << SpaceWarAppID << " is installed in => " <<  Folder.data() << std::endl;
+					}
+					std::array<DepotId_t, 256> Depots;
+					const auto DepoCount = SteamApps()->GetInstalledDepots(SpaceWarAppID, Depots.data(), static_cast<uint32>(Depots.size()));
+					for (uint32 i = 0; i < DepoCount;++i) {
+						std::cout << SpaceWarAppID << "'s depot => " << Depots[i] << std::endl;
+					}
+				}
+			}
+
 			StartController();
 
 			Steam::PrintUsage();
