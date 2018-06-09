@@ -582,7 +582,7 @@ GameClient::GameClient()
 		//!< RemoteStorage のクエリ
 		QueryRemoteStoage();
 
-		//!< フレンド情報の取得
+		//!< フレンド情報の取得 #MY_TODO $5制限を外してフレンド関連をチェックする
 		GetFriendInformation();
 	}
 }
@@ -1471,7 +1471,7 @@ void GameClient::OnRemoteStorageFileReadAsyncComplete(RemoteStorageFileReadAsync
 void GameClient::OnRemoteStorageFileWriteAsyncComplete(RemoteStorageFileWriteAsyncComplete_t *pCallback, bool bIOFailure)
 {
 	if (!bIOFailure && k_EResultOK == pCallback->m_eResult) {
-		ReadRemmoteStorage();
+		ReadRemoteStorage();
 	}
 }
 void GameClient::QueryRemoteStoage()
@@ -1526,7 +1526,7 @@ void GameClient::WriteRemoteStorage()
 		}
 	}
 }
-void GameClient::ReadRemmoteStorage()
+void GameClient::ReadRemoteStorage()
 {
 	auto RemoteStorage = SteamRemoteStorage();
 	if (nullptr != RemoteStorage) {

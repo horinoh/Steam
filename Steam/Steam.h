@@ -161,7 +161,7 @@ public:
 	void OnRemoteStorageFileWriteAsyncComplete(RemoteStorageFileWriteAsyncComplete_t *pCallback, bool bIOFailure);
 	void QueryRemoteStoage();
 	void WriteRemoteStorage();
-	void ReadRemmoteStorage();
+	void ReadRemoteStorage();
 
 	CSteamID GetEnteredLobbySteamID() const { return mEnteredLobbySteamID; }
 
