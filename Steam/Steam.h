@@ -22,6 +22,21 @@
 #define SAFE_FCLOSE(x) if(nullptr != x) { fclose(x); x = nullptr; }
 #endif
 
+#ifndef USE_DX
+#define USE_DX
+#endif
+
+#ifdef USE_DX
+#include <wrl.h>
+#include <d3d12.h>
+#include <DXGI1_4.h>
+#include <DirectXColors.h>
+
+#ifndef VERIFY_SUCCEEDED
+#define VERIFY_SUCCEEDED(vr) if(FAILED(vr)) { DebugBreak(); }
+#endif
+#endif
+
 class Steam
 {
 public:
@@ -166,11 +181,18 @@ public:
 	CSteamID GetEnteredLobbySteamID() const { return mEnteredLobbySteamID; }
 
 	void GetFriendInformation();
+
 	void PrintFriendRelationship();
+	void PrintPersonaName(const CSteamID SteamID);
+	void PrintNickname(const CSteamID SteamID);
+	void PrintSteamLevel(const CSteamID SteamID);
+	void PrintPersonaState(const CSteamID SteamID);
+	void PrintGamePlayed(const CSteamID SteamID);
+	void PrintAvatarInfo(const CSteamID SteamID);
 	void OnImageLoad(const int ImageHandle);
 	STEAM_CALLBACK(GameClient, OnPersonaStateChange, PersonaStateChange_t);
-	STEAM_CALLBACK(GameClient, OnGameOverlayActivated, GameOverlayActivated_t);
 	STEAM_CALLBACK(GameClient, OnAvatarImageLoaded, AvatarImageLoaded_t);
+	STEAM_CALLBACK(GameClient, OnGameOverlayActivated, GameOverlayActivated_t);
 
 	//GameServerChangeRequested_t;
 	//GameLobbyJoinRequested_t;
@@ -224,3 +246,53 @@ protected:
 
 	PublishedFileId_t mPublishedFileId = 0;
 };
+
+#ifdef USE_DX
+class DX
+{
+public:
+	void OnCreate(HWND hWnd);
+	void OnSize(HWND hWnd, HINSTANCE hInstance);
+	void OnPaint(HWND hWnd, HINSTANCE hInstance);
+	void OnDestroy(HWND hWnd, HINSTANCE hInstance);
+
+	void CreateDevice(HWND hWnd);
+	void CreateCommandQueue();
+	void CreateFence();
+	void CreateSwapchain(HWND hWnd);
+	void CreateCommandList();
+	void CreateSwapChainResource();
+	void CreateRootSignature();
+	void CreatePipelineState();
+	void CreateViewport(const FLOAT Width, const FLOAT Height, const FLOAT MinDepth = 0.0f, const FLOAT MaxDepth = 1.0f);
+
+	void ResourceBarrier(ID3D12GraphicsCommandList* CommandList, ID3D12Resource* Resource, const D3D12_RESOURCE_STATES Before, const D3D12_RESOURCE_STATES After);
+	void PopulateCommandList(const size_t i);
+
+	void Draw();
+	void WaitForFence();
+
+protected:
+	Microsoft::WRL::ComPtr<ID3D12Device> Device;
+
+	Microsoft::WRL::ComPtr<ID3D12CommandQueue> CommandQueue;
+
+	Microsoft::WRL::ComPtr<ID3D12Fence> Fence;
+	UINT64 FenceValue = 0;
+
+	Microsoft::WRL::ComPtr<IDXGISwapChain3> SwapChain;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> SwapChainDescriptorHeap;
+	UINT CurrentBackBufferIndex = 0xffffffff;
+	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> SwapChainResources;
+
+	Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CommandAllocator;
+	std::vector<Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList>> GraphicsCommandLists;
+
+	Microsoft::WRL::ComPtr<ID3D12RootSignature> RootSignature;
+
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> PipelineState;
+
+	std::vector<D3D12_VIEWPORT> Viewports;
+	std::vector<D3D12_RECT> ScissorRects;
+};
+#endif

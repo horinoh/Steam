@@ -4,6 +4,13 @@
 #include "stdafx.h"
 #include "Steam.h"
 
+#ifdef USE_DX
+#pragma comment(lib, "d3d12.lib")
+#pragma comment(lib, "d3dcompiler.lib")
+#pragma comment(lib, "dxgi.lib")
+DX* DXInst = nullptr;
+#endif
+
 #pragma region AddCode
 Steam* SteamInst = nullptr;
 #pragma endregion
@@ -146,12 +153,31 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 		}
 		break;
-#pragma region AddCode
 	case WM_CREATE:
 		if (nullptr == SteamInst) {
 			SteamInst = new Steam();
 		}
 		SetTimer(hWnd, NULL, 1000 / 60, nullptr);
+#ifdef USE_DX
+		if (nullptr == DXInst) {
+			DXInst = new DX();
+		}
+		if (nullptr != DXInst) {
+			try {
+				DXInst->OnCreate(hWnd);
+			}
+			catch (std::exception& e) {
+				std::cerr << e.what() << std::endl;
+			}
+		}
+#endif
+		break;
+	case WM_SIZE:
+#ifdef USE_DX
+		if (nullptr != DXInst) {
+			DXInst->OnSize(hWnd, hInst);
+		}
+#endif
 		break;
 	case WM_TIMER:
 		if (nullptr != SteamInst) {
@@ -167,19 +193,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			SendMessage(hWnd, WM_DESTROY, 0, 0);
 		}
 		break;
-#pragma endregion
 	case WM_PAINT:
 		{
 			PAINTSTRUCT ps;
 			HDC hdc = BeginPaint(hWnd, &ps);
 			// TODO: Add any drawing code that uses hdc here...
+#ifdef USE_DX
+			if (nullptr != DXInst) {
+				DXInst->OnPaint(hWnd, hInst);
+			}
+#endif
 			EndPaint(hWnd, &ps);
 		}
 		break;
 	case WM_DESTROY:
-#pragma region AddCode
+#ifdef USE_DX
+		if (nullptr != DXInst) {
+			DXInst->OnDestroy(hWnd, hInst);
+		}
+		SAFE_DELETE(DXInst);
+#endif
 		SAFE_DELETE(SteamInst);
-#pragma endregion
 		PostQuitMessage(0);
 		break;
 	default:
@@ -1547,16 +1581,24 @@ void GameClient::GetFriendInformation()
 		for (auto i = 0; i < SteamFriends()->GetFriendCount(k_EFriendFlagAll); ++i) {
 			const auto SteamID = SteamFriends()->GetFriendByIndex(i, k_EFriendFlagAll);
 
+			//!< ペルソナ名、アバターを取得する
 			const auto bNameOnly = false; //!< アバターもロードする
 			if (SteamFriends()->RequestUserInformation(SteamID, bNameOnly)) {
 				//!< PersonaStateChanged_t がコールバックされる
 
 				//!< とりあえず最初の一人だけユーザ情報(とアバター)をリクエストして break
-				std::cout << "\t" << "Requesting " << SteamFriends()->GetFriendPersonaName(SteamID) << "'s user information" << std::endl;
+				std::cout << "\t" << "Requesting ... " << SteamFriends()->GetFriendPersonaName(SteamID) << "'s user information" << std::endl;
 				break;
 			}
 			else {
 				//!< ユーザ情報を既に取得できている
+
+				PrintPersonaName(SteamID);
+				PrintNickname(SteamID);
+				PrintSteamLevel(SteamID);
+				PrintPersonaState(SteamID);
+				PrintGamePlayed(SteamID);
+				PrintAvatarInfo(SteamID);
 			}
 		}
 	}
@@ -1584,7 +1626,7 @@ void GameClient::PrintFriendRelationship()
 			}
 		}
 
-		std::cout << "Ignore" << std::endl;
+		std::cout << "Ignores" << std::endl;
 		for (auto i = 0; i < SteamFriends()->GetFriendCount(k_EFriendFlagIgnored); ++i) {
 			const auto SteamID = SteamFriends()->GetFriendByIndex(i, k_EFriendFlagIgnored);
 			if (SteamID.IsValid()) {
@@ -1592,7 +1634,7 @@ void GameClient::PrintFriendRelationship()
 			}
 		}
 
-		std::cout << "IgnoreFriends" << std::endl;
+		std::cout << "Ignore Friends" << std::endl;
 		for (auto i = 0; i < SteamFriends()->GetFriendCount(k_EFriendFlagIgnoredFriend); ++i) {
 			const auto SteamID = SteamFriends()->GetFriendByIndex(i, k_EFriendFlagIgnoredFriend);
 			if (SteamID.IsValid()) {
@@ -1615,6 +1657,74 @@ void GameClient::PrintFriendRelationship()
 	}
 }
 
+void GameClient::PrintPersonaName(const CSteamID SteamID)
+{
+	std::cout << "\t" << "\t" << "PersonaName" << std::endl;
+	std::cout << "\t" << "\t" << "\t" << SteamFriends()->GetFriendPersonaName(SteamID) << std::endl;
+
+	
+}
+
+void GameClient::PrintNickname(const CSteamID SteamID)
+{
+	const auto Nickname = SteamFriends()->GetPlayerNickname(SteamID);
+	if (nullptr != Nickname) {
+		std::cout << "\t" << "\t" << "NickName" << std::endl;
+		std::cout << "\t" << "\t" << "\t" << Nickname << std::endl;
+	}
+}
+
+void GameClient::PrintSteamLevel(const CSteamID SteamID)
+{
+	std::cout << "\t" << "\t" << "SteamLevel" << std::endl;
+	std::cout << "\t" << "\t" << "\t" << SteamFriends()->GetFriendSteamLevel(SteamID) << std::endl;
+}
+
+void GameClient::PrintPersonaState(const CSteamID SteamID)
+{
+	std::cout << "\t" << "\t" << "PersonaState" << std::endl;
+	const auto PersonalState = SteamFriends()->GetFriendPersonaState(SteamID);
+	switch (PersonalState) {
+	case k_EPersonaStateOffline: std::cout << "\t" << "\t" << "\t" << "Offline" << std::endl; break;
+	case k_EPersonaStateOnline:  std::cout << "\t" << "\t" << "\t" << "Online" << std::endl; break;
+	}
+}
+void GameClient::PrintGamePlayed(const CSteamID SteamID)
+{
+	FriendGameInfo_t FriendGameInfo;
+	if (SteamFriends()->GetFriendGamePlayed(SteamID, &FriendGameInfo)) {
+		std::cout << "\t" << "\t" << "GamePlayed" << std::endl;
+		std::cout << "\t" << "\t" << "\t" << FriendGameInfo.m_gameID.ToUint64() << std::endl;
+	}
+}
+void GameClient::PrintAvatarInfo(const CSteamID SteamID)
+{
+	std::cout << "\t" << "\t" << "Avatar" << std::endl;
+	if (SteamFriends()) {
+		//!< 小アバターの取得
+		auto ImageHandle = SteamFriends()->GetSmallFriendAvatar(SteamID);
+		if (ImageHandle) {
+			OnImageLoad(ImageHandle);
+		}
+
+		//!< 中アバターの取得
+		ImageHandle = SteamFriends()->GetMediumFriendAvatar(SteamID);
+		if (ImageHandle) {
+			OnImageLoad(ImageHandle);
+		}
+
+		//!< 大アバターの取得(リクエスト)
+		ImageHandle = SteamFriends()->GetLargeFriendAvatar(SteamID);
+		if (-1 == ImageHandle) {
+			//!< -1 の場合はリクエストした、AvatarImageLoaded_t でコールバックされる
+			std::cout << "\t" << "\t" << "\t" << "Requesting large avatar ..." << std::endl;
+		}
+		else if (ImageHandle) {
+			OnImageLoad(ImageHandle);
+		}
+	}
+}
+
 void GameClient::OnImageLoad(const int ImageHandle)
 {
 	uint32 Width, Height;
@@ -1622,101 +1732,423 @@ void GameClient::OnImageLoad(const int ImageHandle)
 		std::vector<uint8> Image(4 * Height * Width);
 		if (SteamUtils()->GetImageRGBA(ImageHandle, Image.data(), static_cast<int>(Image.size()))) {
 			//!< 画像がロードされた
-			std::cout << "\t" << "\t" << "Image(RGBA) loaded " << Width << " x " << Height << std::endl;
+			std::cout << "\t" << "\t" << "\t" << "Image(RGBA) loaded " << Width << " x " << Height << std::endl;
 		}
 	}
 }
 
 void GameClient::OnPersonaStateChange(PersonaStateChange_t* pCallback)
 {
-	std::cout << "On personal state change" << std::endl;
+	std::cout << "OnPersonaStateChange()" << std::endl;
 
 	const auto SteamID = CSteamID(pCallback->m_ulSteamID);
 
 	if (k_EPersonaChangeName & pCallback->m_nChangeFlags) {
-		std::cout << "\t" << "Name" << std::endl;
-		SteamFriends()->GetClanName(SteamID);
+		PrintPersonaName(SteamID);
 	}
 	if (k_EPersonaChangeStatus & pCallback->m_nChangeFlags) {
-		std::cout << "\t" << "Status" << std::endl;
+		PrintPersonaState(SteamID);
 	}
 	if (k_EPersonaChangeComeOnline & pCallback->m_nChangeFlags) {
-		std::cout << "\t" << "ComeOnline" << std::endl;
 	}
 	if (k_EPersonaChangeGoneOffline & pCallback->m_nChangeFlags) {
-		std::cout << "\t" << "GoneOffline" << std::endl;
 	}
 	if (k_EPersonaChangeGamePlayed & pCallback->m_nChangeFlags) {
-		std::cout << "\t" << "GamePlayed" << std::endl;
-		if (SteamFriends()) {
-			FriendGameInfo_t FriendGameInfo;
-			if (SteamFriends()->GetFriendGamePlayed(SteamID, &FriendGameInfo)) {
-				std::cout << "\t" << "\t" << "GameID = " << FriendGameInfo.m_gameID.ToUint64() << std::endl;
-			}
-		}
+		PrintGamePlayed(SteamID);
 	}
 	if (k_EPersonaChangeGameServer & pCallback->m_nChangeFlags) {}
 	if (k_EPersonaChangeAvatar & pCallback->m_nChangeFlags) {
-		std::cout << "\t" << "Avatar" << std::endl;
-		if (SteamFriends()) {
-			//!< 小アバターの取得
-			auto ImageHandle = SteamFriends()->GetSmallFriendAvatar(SteamID);
-			if (ImageHandle) {
-				OnImageLoad(ImageHandle);
-			}
-
-			//!< 中アバターの取得
-			ImageHandle = SteamFriends()->GetMediumFriendAvatar(SteamID);
-			if (ImageHandle) {
-				OnImageLoad(ImageHandle);
-			}
-
-			//!< 大アバターの取得(リクエスト)
-			ImageHandle = SteamFriends()->GetLargeFriendAvatar(SteamID);
-			if (-1 == ImageHandle) {
-				//!< -1 の場合はリクエストした、AvatarImageLoaded_t でコールバックされる
-				std::cout << "\t" << "\t" << "Requesting large avatar" << std::endl;
-			}
-			else if (ImageHandle) {
-				OnImageLoad(ImageHandle);
-			}
-		}
+		PrintAvatarInfo(SteamID);
 	}
 	if (k_EPersonaChangeJoinedSource & pCallback->m_nChangeFlags) {}
 	if (k_EPersonaChangeLeftSource & pCallback->m_nChangeFlags) {}
 	if (k_EPersonaChangeRelationshipChanged & pCallback->m_nChangeFlags) {
-		std::cout << "\t" << "RelationshipChanged" << std::endl;
 		PrintFriendRelationship();
 	}
 	if (k_EPersonaChangeNameFirstSet & pCallback->m_nChangeFlags) {}
 	if (k_EPersonaChangeFacebookInfo & pCallback->m_nChangeFlags) {}
 	if (k_EPersonaChangeNickname & pCallback->m_nChangeFlags) {
-		std::cout << "\t" << "Nickname" << std::endl;
-		SteamFriends()->GetPlayerNickname(SteamID);
+		PrintNickname(SteamID);
 	}
 	if (k_EPersonaChangeSteamLevel & pCallback->m_nChangeFlags) {
-		std::cout << "\t" << "SteamLevel" << std::endl;
-		SteamFriends()->GetFriendSteamLevel(SteamID);
+		PrintSteamLevel(SteamID);
 	}
 }
+void GameClient::OnAvatarImageLoaded(AvatarImageLoaded_t* pCallback)
+{
+	std::cout << "OnAvatarImageLoaded()" << std::endl;
 
+	if (pCallback->m_iImage) {
+		OnImageLoad(pCallback->m_iImage);
+	}
+}
 void GameClient::OnGameOverlayActivated(GameOverlayActivated_t* pCallback)
 {
+	std::cout << "OnGameOverlayActivated()" << std::endl;
+
 	//!< DirectX 等で描画されていないとオーバーレイは表示されない
 	if (pCallback->m_bActive) {}
 }
+#pragma endregion
 
-void GameClient::OnAvatarImageLoaded(AvatarImageLoaded_t* pCallback)
+#ifdef USE_DX
+void DX::OnCreate(HWND hWnd)
 {
-	if (pCallback->m_iImage) {
-		std::cout << "\t" << "Avatar image loaded" << std::endl;
-#if 1
-		OnImageLoad(pCallback->m_iImage);
-#else
-		std::vector<uint8> Image(4 * pCallback->m_iTall * pCallback->m_iWide);
-		if (SteamUtils()->GetImageRGBA(pCallback->m_iImage, Image.data(), static_cast<int>(Image.size()))) {
-		}
-#endif
+	CreateDevice(hWnd);
+	CreateCommandQueue();
+	CreateFence();
+	CreateSwapchain(hWnd);
+	CreateRootSignature();
+	//CreatePipelineState();
+}
+
+void DX::OnSize(HWND hWnd, HINSTANCE hInstance)
+{
+	WaitForFence();
+
+	RECT Rect;
+	GetClientRect(hWnd, &Rect);
+	const auto Width = static_cast<UINT>(Rect.right - Rect.left);
+	const auto Height = static_cast<UINT>(Rect.bottom - Rect.top);
+	CreateViewport(static_cast<FLOAT>(Width), static_cast<FLOAT>(Height));
+
+	
+
+	for (auto i = 0; i < GraphicsCommandLists.size(); ++i) {
+		PopulateCommandList(i);
 	}
 }
-#pragma endregion
+
+void DX::OnPaint(HWND hWnd, HINSTANCE hInstance)
+{
+	Draw();
+}
+
+void DX::OnDestroy(HWND hWnd, HINSTANCE hInstance)
+{
+	WaitForFence();
+}
+
+void DX::CreateDevice(HWND hWnd)
+{
+	using namespace Microsoft::WRL;
+
+#ifdef _DEBUG
+	ComPtr<ID3D12Debug> Debug;
+	VERIFY_SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(Debug.GetAddressOf())));
+	Debug->EnableDebugLayer();
+#endif
+
+	ComPtr<IDXGIFactory4> Factory;
+	VERIFY_SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(Factory.GetAddressOf())));
+
+	ComPtr<IDXGIAdapter> Adapter;
+	Factory->EnumAdapters(0, Adapter.ReleaseAndGetAddressOf());
+
+	const std::vector<D3D_FEATURE_LEVEL> FeatureLevels = {
+		D3D_FEATURE_LEVEL_12_1,
+		D3D_FEATURE_LEVEL_12_0,
+		D3D_FEATURE_LEVEL_11_1,
+		D3D_FEATURE_LEVEL_11_0,
+		D3D_FEATURE_LEVEL_10_1,
+		D3D_FEATURE_LEVEL_10_0,
+		D3D_FEATURE_LEVEL_9_3,
+		D3D_FEATURE_LEVEL_9_2,
+		D3D_FEATURE_LEVEL_9_1,
+	};
+	auto FeatureLevel = D3D_FEATURE_LEVEL_9_1;
+	for (const auto i : FeatureLevels) {
+		if (SUCCEEDED(D3D12CreateDevice(Adapter.Get(), i, _uuidof(ID3D12Device), nullptr))) {
+			FeatureLevel = i;
+			break;
+		}
+	}
+	D3D12CreateDevice(Adapter.Get(), FeatureLevel, IID_PPV_ARGS(Device.GetAddressOf()));
+}
+
+void DX::CreateCommandQueue()
+{
+	const D3D12_COMMAND_QUEUE_DESC CommandQueueDesc = {
+		D3D12_COMMAND_LIST_TYPE_DIRECT,
+		0,
+		D3D12_COMMAND_QUEUE_FLAG_NONE,
+		0
+	};
+	VERIFY_SUCCEEDED(Device->CreateCommandQueue(&CommandQueueDesc, IID_PPV_ARGS(CommandQueue.GetAddressOf())));
+}
+
+void DX::CreateFence()
+{
+	VERIFY_SUCCEEDED(Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(Fence.GetAddressOf())));
+}
+
+void DX::CreateSwapchain(HWND hWnd)
+{
+	RECT Rect;
+	GetClientRect(hWnd, &Rect);
+	const auto Width = static_cast<UINT>(Rect.right - Rect.left);
+	const auto Height = static_cast<UINT>(Rect.bottom - Rect.top);
+
+	using namespace Microsoft::WRL;
+
+	const UINT BufferCount = 3;
+
+	ComPtr<IDXGIFactory4> Factory;
+	VERIFY_SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(Factory.GetAddressOf())));
+
+	SwapChain.Reset();
+	ComPtr<IDXGISwapChain> NewSwapChain;
+	const DXGI_RATIONAL Rational = { 60, 1 };
+	const DXGI_MODE_DESC ModeDesc = {
+		Width, Height,
+		Rational,
+		DXGI_FORMAT_R8G8B8A8_UNORM,
+		DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED,
+		DXGI_MODE_SCALING_UNSPECIFIED
+	};
+	const DXGI_SAMPLE_DESC SampleDesc = { 1, 0 };
+	DXGI_SWAP_CHAIN_DESC SwapChainDesc = {
+		ModeDesc,
+		SampleDesc,
+		DXGI_USAGE_RENDER_TARGET_OUTPUT,
+		BufferCount,
+		hWnd,
+		TRUE,
+		DXGI_SWAP_EFFECT_FLIP_DISCARD,
+		DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH
+	};
+	VERIFY_SUCCEEDED(Factory->CreateSwapChain(CommandQueue.Get(), &SwapChainDesc, NewSwapChain.GetAddressOf()));
+	VERIFY_SUCCEEDED(NewSwapChain.As(&SwapChain));
+
+	const D3D12_DESCRIPTOR_HEAP_DESC DescriptorHeapDesc = {
+		D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+		SwapChainDesc.BufferCount,
+		D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
+		0
+	};
+	VERIFY_SUCCEEDED(Device->CreateDescriptorHeap(&DescriptorHeapDesc, IID_PPV_ARGS(SwapChainDescriptorHeap.GetAddressOf())));
+
+	CreateSwapChainResource();
+
+	CreateCommandList();
+}
+
+void DX::CreateCommandList()
+{
+	VERIFY_SUCCEEDED(Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(CommandAllocator.GetAddressOf())));
+
+	DXGI_SWAP_CHAIN_DESC1 SwapChainDesc;
+	SwapChain->GetDesc1(&SwapChainDesc);
+	for (UINT i = 0; i < SwapChainDesc.BufferCount; ++i) {
+		Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> GraphicsCommandList;
+		VERIFY_SUCCEEDED(Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, CommandAllocator.Get(), nullptr, IID_PPV_ARGS(GraphicsCommandList.GetAddressOf())));
+
+		GraphicsCommandLists.push_back(GraphicsCommandList);
+		VERIFY_SUCCEEDED(GraphicsCommandLists.back()->Close());
+	}
+}
+
+void DX::CreateSwapChainResource()
+{
+	DXGI_SWAP_CHAIN_DESC1 SwapChainDesc;
+	SwapChain->GetDesc1(&SwapChainDesc);
+	SwapChainResources.resize(SwapChainDesc.BufferCount);
+	for (auto i = 0; i < SwapChainResources.size(); ++i) {
+		VERIFY_SUCCEEDED(SwapChain->GetBuffer(i, IID_PPV_ARGS(SwapChainResources[i].GetAddressOf())));
+
+		const auto SCR = SwapChainResources[i].Get();
+
+		auto CDH(SwapChainDescriptorHeap.Get()->GetCPUDescriptorHandleForHeapStart());
+		CDH.ptr += i * Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+		Device->CreateRenderTargetView(SCR, nullptr, CDH);
+	}
+}
+
+void DX::CreateRootSignature()
+{
+	const std::vector<D3D12_ROOT_PARAMETER> RootParameters = {};
+	const std::vector<D3D12_STATIC_SAMPLER_DESC> StaticSamplerDescs = {};
+		const D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc = {
+		static_cast<UINT>(RootParameters.size()), RootParameters.data(),
+		static_cast<UINT>(StaticSamplerDescs.size()), StaticSamplerDescs.data(),
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+	};
+	Microsoft::WRL::ComPtr<ID3DBlob> Blob;
+	Microsoft::WRL::ComPtr<ID3DBlob> ErrorBlob;
+	VERIFY_SUCCEEDED(D3D12SerializeRootSignature(&RootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, Blob.GetAddressOf(), ErrorBlob.GetAddressOf()));
+	VERIFY_SUCCEEDED(Device->CreateRootSignature(0, Blob->GetBufferPointer(), Blob->GetBufferSize(), IID_PPV_ARGS(RootSignature.GetAddressOf())));
+}
+
+void DX::CreatePipelineState()
+{
+	const D3D12_SHADER_BYTECODE DefaultShaderBytecode = { nullptr, 0 };
+	const std::vector<D3D12_SHADER_BYTECODE> ShaderBytecodes = {
+		DefaultShaderBytecode,
+		DefaultShaderBytecode,
+		DefaultShaderBytecode,
+		DefaultShaderBytecode,
+		DefaultShaderBytecode,
+	};
+
+	const D3D12_STREAM_OUTPUT_DESC StreamOutputDesc = {
+		nullptr, 0,
+		nullptr, 0,
+		0
+	};
+
+	const D3D12_RENDER_TARGET_BLEND_DESC DefaultRenderTargetBlendDesc = {
+		FALSE, FALSE,
+		D3D12_BLEND_ONE, D3D12_BLEND_ZERO, D3D12_BLEND_OP_ADD,
+		D3D12_BLEND_ONE, D3D12_BLEND_ZERO, D3D12_BLEND_OP_ADD,
+		D3D12_LOGIC_OP_NOOP,
+		D3D12_COLOR_WRITE_ENABLE_ALL,
+	};
+	const D3D12_BLEND_DESC BlendDesc = {
+		FALSE,
+		FALSE,
+		{ DefaultRenderTargetBlendDesc }
+	};
+
+	const D3D12_RASTERIZER_DESC RasterizerDesc = {
+		D3D12_FILL_MODE_SOLID,
+		D3D12_CULL_MODE_BACK, TRUE,
+		D3D12_DEFAULT_DEPTH_BIAS, D3D12_DEFAULT_DEPTH_BIAS_CLAMP, D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS,
+		TRUE,
+		FALSE,
+		FALSE,
+		0,
+		D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF
+	};
+
+	const D3D12_DEPTH_STENCILOP_DESC DepthStencilOpDesc = {
+		D3D12_STENCIL_OP_KEEP,
+		D3D12_STENCIL_OP_KEEP,
+		D3D12_STENCIL_OP_KEEP,
+		D3D12_COMPARISON_FUNC_NEVER
+	};
+
+	const D3D12_DEPTH_STENCIL_DESC DepthStencilDesc = {
+		FALSE,
+		D3D12_DEPTH_WRITE_MASK_ZERO,
+		D3D12_COMPARISON_FUNC_NEVER,
+		FALSE,
+		0,
+		0,
+		DepthStencilOpDesc,
+		DepthStencilOpDesc
+	};
+
+	const std::vector<D3D12_INPUT_ELEMENT_DESC> InputElementDescs = {};
+	const D3D12_INPUT_LAYOUT_DESC InputLayoutDesc = {
+		InputElementDescs.data(), static_cast<UINT>(InputElementDescs.size())
+	};
+
+	const DXGI_SAMPLE_DESC SampleDesc = { 1, 0 };
+	const D3D12_CACHED_PIPELINE_STATE CachedPipelineState = { nullptr, 0 };
+	const D3D12_GRAPHICS_PIPELINE_STATE_DESC GraphicsPipelineStateDesc = {
+		RootSignature.Get(),
+		ShaderBytecodes[0], ShaderBytecodes[1], ShaderBytecodes[2], ShaderBytecodes[3], ShaderBytecodes[4],
+		StreamOutputDesc,
+		BlendDesc,
+		UINT_MAX,
+		RasterizerDesc,
+		DepthStencilDesc,
+		InputLayoutDesc,
+		D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED,
+		D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
+		1,{ DXGI_FORMAT_R8G8B8A8_UNORM },
+		DXGI_FORMAT_D32_FLOAT_S8X24_UINT,
+		SampleDesc,
+		0,
+		CachedPipelineState,
+		D3D12_PIPELINE_STATE_FLAG_NONE
+	};
+
+	VERIFY_SUCCEEDED(Device->CreateGraphicsPipelineState(&GraphicsPipelineStateDesc, IID_PPV_ARGS(PipelineState.GetAddressOf())));
+}
+
+void DX::CreateViewport(const FLOAT Width, const FLOAT Height, const FLOAT MinDepth, const FLOAT MaxDepth)
+{
+	Viewports = {
+		{
+			0.0f, 0.0f,
+			Width, Height,
+			MinDepth, MaxDepth
+		}
+	};
+	ScissorRects = {
+		{
+			0, 0,
+			static_cast<LONG>(Width), static_cast<LONG>(Height)
+		}
+	};
+}
+
+void DX::ResourceBarrier(ID3D12GraphicsCommandList* CommandList, ID3D12Resource* Resource, const D3D12_RESOURCE_STATES Before, const D3D12_RESOURCE_STATES After)
+{
+	const D3D12_RESOURCE_TRANSITION_BARRIER ResourceTransitionBarrier = {
+		Resource,
+		D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
+		Before,
+		After
+	};
+	const std::vector<D3D12_RESOURCE_BARRIER> ResourceBarrier = {
+		{
+			D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+			D3D12_RESOURCE_BARRIER_FLAG_NONE,
+			ResourceTransitionBarrier
+		}
+	};
+	CommandList->ResourceBarrier(static_cast<UINT>(ResourceBarrier.size()), ResourceBarrier.data());
+}
+
+void DX::PopulateCommandList(const size_t i)
+{
+	const auto CL = GraphicsCommandLists[i].Get();
+	const auto SCR = SwapChainResources[i].Get();
+	auto CDH(SwapChainDescriptorHeap.Get()->GetCPUDescriptorHandleForHeapStart());
+	CDH.ptr += static_cast<UINT>(i) * Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	const auto CA = CommandAllocator.Get();
+
+	VERIFY_SUCCEEDED(CL->Reset(CA, PipelineState.Get()));
+	{
+		//!< ビューポート、シザー
+		CL->RSSetViewports(static_cast<UINT>(Viewports.size()), Viewports.data());
+		CL->RSSetScissorRects(static_cast<UINT>(ScissorRects.size()), ScissorRects.data());
+
+		ResourceBarrier(CL, SCR, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET); {
+			CL->ClearRenderTargetView(CDH, DirectX::Colors::SkyBlue, 0, nullptr);
+		} ResourceBarrier(CL, SCR, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	}
+	VERIFY_SUCCEEDED(CL->Close());
+}
+
+void DX::Draw()
+{
+	WaitForFence();
+
+	CurrentBackBufferIndex = 0xffffffff == CurrentBackBufferIndex ? SwapChain->GetCurrentBackBufferIndex() : (CurrentBackBufferIndex + 1) % static_cast<const UINT>(SwapChainResources.size());
+
+	const std::vector<ID3D12CommandList*> CommandLists = {
+		GraphicsCommandLists[CurrentBackBufferIndex].Get()
+	};
+	CommandQueue->ExecuteCommandLists(static_cast<UINT>(CommandLists.size()), CommandLists.data());
+
+	VERIFY_SUCCEEDED(SwapChain->Present(1, 0));
+}
+
+void DX::WaitForFence()
+{
+	++FenceValue;
+	VERIFY_SUCCEEDED(CommandQueue->Signal(Fence.Get(), FenceValue));
+	if (Fence->GetCompletedValue() < FenceValue) {
+		auto hEvent = CreateEventEx(nullptr, nullptr, 0, EVENT_ALL_ACCESS);
+		VERIFY_SUCCEEDED(Fence->SetEventOnCompletion(FenceValue, hEvent));
+
+		WaitForSingleObject(hEvent, INFINITE);
+		CloseHandle(hEvent);
+	}
+}
+
+#endif
