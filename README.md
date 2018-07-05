@@ -23,18 +23,27 @@
     ~~~
     Steam.exe -console
     ~~~
-## ディスクイメージ
+
+## インストーラのビルド
 * 予め(default, baseline等の)デポビルドを行っておく
-* コンソールからバックアップコマンドを入力する
-    * build_installer <プロジェクトファイル> <出力先> <ブランチ> <ブランチパスワード>
-        * ブランチ指定する場合は **baseline という名前で**ブランチを予め作っておく
+    * ブランチ指定する場合は **baseline という名前で**ブランチを予め作っておく
+
+### コンソールからの場合
+* build_installer <プロジェクトファイル> <出力先> <ブランチ> <ブランチパスワード>
     ~~~
     build_installer "D:\GitHub\Steamworks\sku_project_example.txt" "D:\GitHub\Steamworks\output"
     build_installer "D:\GitHub\Steamworks\sku_project_example.txt" "D:\GitHub\Steamworks\output" baseline XXXX
     ~~~
-    * output 以下に Disk_1,... フォルダが作成され、中に .csd, .csm, .sis ファイルが出力されていれば成功
-        * 進捗があまりなく動いているか心配になるが、Steamで他のDLなどはせずに待つ
-        * ログは C:\Program Files (x86)\Steam\logs\backup_log.txt
+    * ログは C:\Program Files (x86)\Steam\logs\backup_log.txt
+
+### コマンドラインからの場合
+* steamcmd.exe +login <ユーザ名> <ユーザパスワード> +build_installer <プロジェクトファイル> <出力先> <ブランチ> <ブランチパスワード> +exit
+    ~~~
+    C:\steamworks_sdk_XXX\sdk\tools\ContentBuilder\builder\steamcmd.exe +login USER YYY +build_installer "D:\GitHub\Steamworks\sku_project_example.txt" "D:\GitHub\Steamworks\output" baseline ZZZ +exit
+    ~~~
+
+* output 以下に Disk_1,... フォルダが作成され、中に .csd, .csm, .sis ファイルが出力されていれば成功
+    * 進捗があまりなく動いているか心配になるが、Steamで他のDLなどはせずに待つ
 * 上記で設定ファイルを置いた Disk_1 を outout 以下へコピー(output/Disk_1と統合)する
 * (何か適当なツールで)Disk_1, Disk_2,... をisoにする 
 * (何か適当なツールで)iso を仮想ディスクとしてマウントするか、右クリック - ディスクイメージの書き込みで物理ディスクへ書き込む
