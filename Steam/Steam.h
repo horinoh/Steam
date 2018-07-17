@@ -150,8 +150,8 @@ public:
 	void OnLeaderboardScoreUploaded(LeaderboardScoreUploaded_t *pCallback, bool bIOFailure);
 	void OnRemoteStorageFileShareResult(RemoteStorageFileShareResult_t *pCallback, bool bIOFailure);
 	void OnLeaderboardUGCSet(LeaderboardUGCSet_t *pCallback, bool bIOFailure);
-	void UploadLeaderboard();
-	void DownloadLeaderboard();
+	void UploadLeaderboard(const char* LeaderboardName);
+	void DownloadLeaderboard(const char* LeaderboardName);
 
 	STEAM_CALLBACK(GameClient, OnDlcInstalled, DlcInstalled_t);
 	void QueryDLC();

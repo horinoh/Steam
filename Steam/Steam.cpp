@@ -601,8 +601,8 @@ GameClient::GameClient()
 		}
 
 		//!< リーダボード
-		UploadLeaderboard();
-		//DownloadLeaderboard();
+		UploadLeaderboard("MyLeaderboard");
+		//DownloadLeaderboard("MyLeaderboard");
 		
 		//!< DLC
 		QueryDLC();
@@ -1067,16 +1067,13 @@ void GameClient::OnLeaderboardFindResultAndUpload(LeaderboardFindResult_t *pCall
 		if (SteamUserStats()) {
 			std::cout << SteamUserStats()->GetLeaderboardName(pCallback->m_hSteamLeaderboard) << std::endl;
 
-			//!< リーダボードを覚えておく
-			mSteamLeaderboard = pCallback->m_hSteamLeaderboard;
-
 			//!< アップロード開始
 			std::random_device rd;
 			const int32 Score = rd() % 101;
 			//!< アップロード時に details を指定すると、ダウンロード時に取得できる (int32 * k_cLeaderboardDetailsMax(=64))
 			//!< UGCにするほどでもないデータを付けたい場合
 			const std::vector<int32> details = { 0, 1, 2, 3 };
-			const auto Handle = SteamUserStats()->UploadLeaderboardScore(mSteamLeaderboard, k_ELeaderboardUploadScoreMethodKeepBest, Score, details.data(), static_cast<int>(details.size()));
+			const auto Handle = SteamUserStats()->UploadLeaderboardScore(pCallback->m_hSteamLeaderboard, k_ELeaderboardUploadScoreMethodKeepBest, Score, details.data(), static_cast<int>(details.size()));
 			if (k_uAPICallInvalid != Handle) {
 				mLeaderboardScoreUploaded.Set(Handle, this, &GameClient::OnLeaderboardScoreUploaded);
 			}
@@ -1090,16 +1087,13 @@ void GameClient::OnLeaderboardFindResultAndDownload(LeaderboardFindResult_t *pCa
 		if (SteamUserStats()) {
 			std::cout << SteamUserStats()->GetLeaderboardName(pCallback->m_hSteamLeaderboard) << std::endl;
 
-			//!< リーダボードを覚えておく
-			mSteamLeaderboard = pCallback->m_hSteamLeaderboard;
-
 #if 0
 			//!< 指定範囲(順位)のリーダーボードを取得
-			const auto Handle = SteamUserStats()->DownloadLeaderboardEntries(mSteamLeaderboard, ELeaderboardDataRequest::k_ELeaderboardDataRequestGlobal, 0, 10);
+			const auto Handle = SteamUserStats()->DownloadLeaderboardEntries(pCallback->m_hSteamLeaderboard, ELeaderboardDataRequest::k_ELeaderboardDataRequestGlobal, 0, 10);
 #else
 			//!< 自身のリーダーボードを取得
 			std::vector<CSteamID> SteamIDs = { SteamUser()->GetSteamID(), /*...*/ };
-			const auto Handle = SteamUserStats()->DownloadLeaderboardEntriesForUsers(mSteamLeaderboard, SteamIDs.data(), static_cast<int>(SteamIDs.size()));
+			const auto Handle = SteamUserStats()->DownloadLeaderboardEntriesForUsers(pCallback->m_hSteamLeaderboard, SteamIDs.data(), static_cast<int>(SteamIDs.size()));
 #endif
 			if (k_uAPICallInvalid != Handle) {
 				mLeaderboardScoresDownloaded.Set(Handle, this, &GameClient::OnLeaderboardScoresDownloaded);
@@ -1165,7 +1159,8 @@ void GameClient::OnRemoteStorageDownloadUGCResult(RemoteStorageDownloadUGCResult
 
 			//!< uint32 0xdeadbeef が書き込まれているはず
 			uint32 data = *reinterpret_cast<uint32*>(Buffer);
-			
+			std::cout << "\t" << "0x" << std::hex << data << std::dec << std::endl;
+
 			delete[] Buffer;
 
 			//!< リーダーボードのダウンロードが完了
@@ -1184,13 +1179,17 @@ void GameClient::OnLeaderboardScoreUploaded(LeaderboardScoreUploaded_t *pCallbac
 		std::cout << "Rank = " << pCallback->m_nGlobalRankPrevious << " -> " << pCallback->m_nGlobalRankNew << std::endl;
 
 		if (SteamUserStats() && SteamRemoteStorage()) {
-			const auto FileName = "UGCFile";
+			const auto LeaderboardName = SteamUserStats()->GetLeaderboardName(pCallback->m_hSteamLeaderboard);
 
 			//!< とりあえず uint32 0xdeadbeef を書き込む
 			uint32 data = 0xdeadbeef;
-			if (SteamRemoteStorage()->FileWrite(FileName, &data, sizeof(data))) {
-				const auto Handle = SteamRemoteStorage()->FileShare(FileName);
+			//!< リーダーボード名のリモートファイルへ書き込み
+			if (SteamRemoteStorage()->FileWrite(LeaderboardName, &data, sizeof(data))) {
+				//!< シェアする
+				const auto Handle = SteamRemoteStorage()->FileShare(LeaderboardName);
 				if (k_uAPICallInvalid != Handle) {
+					//!< m_hSteamLeaderboard は引数に渡されないので、覚えておく
+					mSteamLeaderboard = pCallback->m_hSteamLeaderboard;
 					mRemoteStorageFileShareResult.Set(Handle, this, &GameClient::OnRemoteStorageFileShareResult);
 				}
 			}
@@ -1204,6 +1203,7 @@ void GameClient::OnRemoteStorageFileShareResult(RemoteStorageFileShareResult_t *
 		std::cout << "File Shared" << std::endl;
 		std::cout << "\t" << pCallback->m_rgchFilename << std::endl;
 
+		//!< シェア完了したリモートファイルをリーダーボードへアタッチする
 		if (k_UGCHandleInvalid != pCallback->m_hFile) {
 			const auto Handle = SteamUserStats()->AttachLeaderboardUGC(mSteamLeaderboard, pCallback->m_hFile);
 			if (k_uAPICallInvalid != Handle) {
@@ -1218,26 +1218,31 @@ void GameClient::OnLeaderboardUGCSet(LeaderboardUGCSet_t *pCallback, bool bIOFai
 	if (!bIOFailure && k_EResultOK == pCallback->m_eResult) {
 		std::cout << "UGC Attached" << std::endl;
 
-		//!< リーダーボードのアップロードが完了
+		//!< リーダーボードのアタッチが完了
 		std::cout << "Leaderboard Upload Completed" << std::endl;
-		
-		//!< とりあえずダウンロードを開始してみる
-		DownloadLeaderboard();
+
+		//!< リーダーボードへのアタッチが完了したので、(テンポラリ利用した)リモートファイルは消してしまって良い
+		const auto LeaderboardName = SteamUserStats()->GetLeaderboardName(pCallback->m_hSteamLeaderboard);
+		SteamRemoteStorage()->FileDelete(LeaderboardName);
+		std::cout << "Delete remote file " << LeaderboardName << std::endl;
+
+		//!< リーダーボードのダウンロードを開始
+		DownloadLeaderboard("MyLeaderboard");
 	}
 }
 
-void GameClient::UploadLeaderboard()
+void GameClient::UploadLeaderboard(const char* LeaderboardName)
 {
-	const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodDescending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
-	//const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodAscending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
+	const auto Handle = SteamUserStats()->FindOrCreateLeaderboard(LeaderboardName, ELeaderboardSortMethod::k_ELeaderboardSortMethodDescending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
+	//const auto Handle = SteamUserStats()->FindOrCreateLeaderboard(LeaderboardName, ELeaderboardSortMethod::k_ELeaderboardSortMethodAscending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
 	if (k_uAPICallInvalid != Handle) {
 		mLeaderboardFindResult.Set(Handle, this, &GameClient::OnLeaderboardFindResultAndUpload);
 	}
 }
-void GameClient::DownloadLeaderboard()
+void GameClient::DownloadLeaderboard(const char* LeaderboardName)
 {
-	const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodDescending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
-	//const auto Handle = SteamUserStats()->FindOrCreateLeaderboard("Test", ELeaderboardSortMethod::k_ELeaderboardSortMethodAscending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
+	const auto Handle = SteamUserStats()->FindOrCreateLeaderboard(LeaderboardName, ELeaderboardSortMethod::k_ELeaderboardSortMethodDescending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
+	//const auto Handle = SteamUserStats()->FindOrCreateLeaderboard(LeaderboardName, ELeaderboardSortMethod::k_ELeaderboardSortMethodAscending, ELeaderboardDisplayType::k_ELeaderboardDisplayTypeNumeric);
 	if (k_uAPICallInvalid != Handle) {
 		mLeaderboardFindResult.Set(Handle, this, &GameClient::OnLeaderboardFindResultAndDownload);
 	}
@@ -1519,11 +1524,29 @@ void GameClient::QueryRemoteStoage()
 	std::cout << "IsCloudEnabledForApp = " << (SteamRemoteStorage()->IsCloudEnabledForApp() ? "true" : "false") << std::endl;
 
 	for (auto i = 0; i < SteamRemoteStorage()->GetFileCount(); ++i) {
-		int32 size;
-		const auto name = SteamRemoteStorage()->GetFileNameAndSize(i, &size);
-		std::cout << "[" << i << "] : " << name << "(Size = " << size << ")" << std::endl;
+		int32 Size;
+		const auto Name = SteamRemoteStorage()->GetFileNameAndSize(i, &Size);
+		std::cout << "[" << i << "] : " << Name << "(Size = " << Size << ")" << std::endl;
 	}
 	std::cout << std::endl;
+
+#if 0
+	//!< リモートファイルをすべて消す場合(ローカル、リモート共)
+	//!< FileDelete() すると GetFileCount() はその場で減っていくので、一旦「ファイル名のリスト」を作ってから消すこと
+	//!< リモートのみ消す(FileForget())場合は GetFileCount() は減らないので、この一手間はいらない
+	const auto Count = SteamRemoteStorage()->GetFileCount();
+	if (Count) {
+		std::vector<std::string> Names(Count);
+		for (auto i = 0; i < SteamRemoteStorage()->GetFileCount(); ++i) {
+			int32 Size;
+			Names.push_back(SteamRemoteStorage()->GetFileNameAndSize(i, &Size));
+		}
+		for (auto i : Names) {
+			SteamRemoteStorage()->FileDelete(i.c_str());
+		}
+		assert(0 == SteamRemoteStorage()->GetFileCount() && "");
+	}
+#endif
 
 	//ReadRemmoteStorage();
 	//WriteRemoteStorage();
