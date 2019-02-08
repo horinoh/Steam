@@ -154,10 +154,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 	case WM_CREATE:
-		if (nullptr == SteamInst) {
-			SteamInst = new Steam();
-		}
-		SetTimer(hWnd, NULL, 1000 / 60, nullptr);
 #ifdef USE_DX
 		if (nullptr == DXInst) {
 			DXInst = new DX();
@@ -171,6 +167,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 		}
 #endif
+		if (nullptr == SteamInst) {
+			SteamInst = new Steam();
+		}
+		SetTimer(hWnd, NULL, 1000 / 60, nullptr);
+
 		break;
 	case WM_SIZE:
 #ifdef USE_DX
@@ -207,13 +208,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 	case WM_DESTROY:
+		SAFE_DELETE(SteamInst);
 #ifdef USE_DX
 		if (nullptr != DXInst) {
 			DXInst->OnDestroy(hWnd, hInst);
 		}
 		SAFE_DELETE(DXInst);
 #endif
-		SAFE_DELETE(SteamInst);
 		PostQuitMessage(0);
 		break;
 	default:
@@ -570,23 +571,31 @@ void GameServer::OnValidateAuthTicketResponse(ValidateAuthTicketResponse_t* pCal
 }
 
 /**
-@brief  のコールバックを SteamServersConnected_t で受ける
+@brief 再接続成功時にコールバックされる、ゲーム起動前に既に接続された状態なので起動時にはコールバックされないので注意
 */
 void GameServer::OnSteamServersConnected(SteamServersConnected_t* pCallback)
 {
-	//m_bConnectedToSteam = true;
+	std::cout << "OnSteamServersConnected" << std::endl;
 }
+
 /**
-@brief  のコールバックを SteamServerConnectFailure_t で受ける
+@brief OnSteamServersDisconnected() の後、再接続に失敗する度に繰り返しコールバックされる(不定期)
 */
 void GameServer::OnSteamServerConnectFailure(SteamServerConnectFailure_t* pCallback)
 {
+	std::cout << "OnSteamServerConnectFailure" << std::endl;
+	//pCallback->m_eResult;
+	if (pCallback->m_bStillRetrying) {
+	}
 }
+
 /**
-@brief  のコールバックを SteamServersDisconnected_t で受ける
+@brief 切断されたときにまずコールバックされる
 */
 void GameServer::OnSteamServersDisconnected(SteamServersDisconnected_t* pCallback)
 {
+	std::cout << "OnSteamServersDisconnected" << std::endl;
+	//pCallback->m_eResult;
 }
 
 /**
